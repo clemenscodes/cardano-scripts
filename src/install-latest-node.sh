@@ -1,4 +1,4 @@
-#!/bin/env bash
+#!/usr/bin/env bash
 
 workdir="$HOME/cardano"
 RED='\033[0;31m'    
@@ -6,7 +6,7 @@ GREEN='\033[0;32m'
 SET='\033[0m'
 
 update() {
-    echo -e "${GREEN}Updating and installing Operating System dependencies${SET}"
+    echo -e "${GREEN}Updating and installing operating system dependencies${SET}"
     sudo apt-get update -y
 }
 
@@ -14,26 +14,33 @@ install_debian_os_packages() {
     sudo apt-get install automake build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev libsystemd-dev zlib1g-dev make g++ tmux git jq wget libncursesw5 libtool autoconf -y;
 }
 
+source_bashrc() {
+    echo -e "${GREEN}Sourcing $HOME/.bashrc${SET}"
+    . "$HOME"/.bashrc
+}
+
 install_nix() {
     echo -e "${RED}Nix is not installed, proceeding to install Nix${SET}"
     curl -L https://nixos.org/nix/install > install-nix.sh
     chmod +x install-nix.sh
     ./install-nix.sh
+    source_bashrc
 }
 
 set_nix_iohk_build_cache() 
 {
-echo -e "${GREEN}Setting IOHK Build Cache${SET}"
+echo -e "${GREEN}Setting IOHK build cache${SET}"
 sudo mkdir -p /etc/nix
 cat <<EOF | sudo tee /etc/nix/nix.conf
 substituters = https://cache.nixos.org https://hydra.iohk.io
 trusted-public-keys = iohk.cachix.org-1:DpRUyj7h7V830dp/i6Nti+NEO2/nhblbov/8MW7Rqoo= hydra.iohk.io:f/Ea+s+dFdN+3Y/G+FDgSq+a5NEWhJGzdjvKNGv0/EQ= cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=
 EOF
+source_bashrc
 }
 
 check_nix() {
-    echo -e "${GREEN}Checking for Nix${SET}"
-    if ! type nix > /dev/null; 
+    echo -e "${GREEN}Checking for nix${SET}"
+    if ! type nix >/dev/null 2>&1 
     then
         install_nix
         set_nix_iohk_build_cache
@@ -43,12 +50,12 @@ check_nix() {
 install_ghcup() {
     echo -e "${GREEN}Installing GHC${SET}"
     curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh
+    source_bashrc
 }
 
 check_ghcup() {
-
     echo -e "${GREEN}Checking for ghcup${SET}"
-    if ! type ghcup > /dev/null
+    if ! type ghcup >/dev/null 2>&1
     then
         install_ghcup
     fi
@@ -58,11 +65,12 @@ install_ghc() {
     echo -e "${GREEN}Installing GHC 8.10.4${SET}"
     ghcup install ghc 8.10.4
     ghcup set ghc 8.10.4
+    source_bashrc
 }
 
 check_ghc() {
     echo -e "${GREEN}Checking for GHC${SET}"
-    if ! type ghc > /dev/null
+    if ! type ghc >/dev/null 2>&1
     then 
         install_ghc
     fi 
@@ -70,7 +78,7 @@ check_ghc() {
 
 check_cabal() {
     echo -e "${GREEN}Checking for Cabal${SET}"
-    if ! type cabal > /dev/null
+    if ! type cabal >/dev/null 2>&1
         then 
         echo -e "${RED}Cabal is not installed properly${SET}"
         install_ghcup  
@@ -85,11 +93,6 @@ check_dependencies() {
     check_cabal
 }
 
-clean_up_workdir() {
-    echo -e "${RED}Cleaning up working directory...${SET}"
-    rm -rf "$workdir"
-}
-
 create_workdir() {
     echo -e "${GREEN}Creating working directory in $workdir${SET}"
     mkdir -p "$workdir" 
@@ -98,9 +101,9 @@ create_workdir() {
 
 check_existing_workdir() {
     echo -e "${GREEN}Checking for existing working directory in $workdir${SET}"
-    if [ -d "$workdir" ];
+    if ! [ -d "$workdir" ];
     then
-        clean_up_workdir
+        echo -e "${RED}Working directory not found...${SET}"
         create_workdir
     fi
 }
@@ -121,14 +124,19 @@ install_libsodium() {
     sudo make install
 }
 
-source_bashrc() {
-    echo -e "${GREEN}Sourcing $HOME/.bashrc${SET}"
-    . "$HOME"/.bashrc
+check_for_libsodium() {
+    echo -e "${GREEN}Checking for existing libsodium${SET}"
+    if ! [ -d "$workdir"/libsodium ];
+    then
+        echo -e "${RED}No libsodium found${SET}"
+        install_libsodium
+    fi
 }
 
 add_ld_to_bashrc() {
     echo -e "${GREEN}Adding libsodium compiler to $HOME/.bashrc${SET}"
     echo 'export LD_LIBRARY_PATH="/usr/local/lib:$LD_LIBRARY_PATH"' >> "$HOME"/.bashrc
+    source_bashrc
 }
 
 check_ld_in_bashrc() {
@@ -136,7 +144,6 @@ check_ld_in_bashrc() {
     if [ -z "${ld_in_bashrc}" ]
     then 
         add_ld_to_bashrc
-        source_bashrc
     fi 
 }
 
@@ -156,6 +163,7 @@ check_ld_in_zshrc() {
 add_pkg_to_bashrc() {
     echo -e "${GREEN}Adding package config path to $HOME/.bashrc${SET}"
     echo 'export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH"' >> "$HOME"/.bashrc
+    source_bashrc
 }
 
 check_pkg_in_bashrc() {
@@ -163,7 +171,6 @@ check_pkg_in_bashrc() {
     if [ -z "${pkg_in_bashrc}" ]
         then 
         add_pkg_to_bashrc
-        source_bashrc
     fi 
 }
 
@@ -188,12 +195,12 @@ check_libsodium_path_env() {
 }
 
 download_cardano_node_repository() {
-    echo -e "${GREEN}Downloading Cardano Node Repository${SET}"
+    echo -e "${GREEN}Downloading cardano-node repository${SET}"
     git clone https://github.com/input-output-hk/cardano-node.git
 }
 
 download_cardano_db_sync_repository() {
-    echo -e "${GREEN}Downloading Cardano DB Sync Repository${SET}"
+    echo -e "${GREEN}Downloading cardano-db-sync repository${SET}"
     git clone https://github.com/input-output-hk/cardano-db-sync.git
 }
 
@@ -228,7 +235,7 @@ update_local_project_file_to_use_libsodium_compiler() {
 }
 
 build_latest_node_version() {
-    install_libsodium
+    check_for_libsodium
     check_libsodium_path_env
     download_cardano_repositories_to_workdir
     checkout_latest_node_version
@@ -246,17 +253,17 @@ check_for_binary_install_directory() {
 }
 
 add_local_bin_to_bashrc() {
-    echo -e "${GREEN}Adding ~/.local/bin to $HOME/.bashrc${SET}"
+    echo -e "${GREEN}Adding $HOME/.local/bin to $HOME/.bashrc${SET}"
     echo 'export PATH="$HOME/.local/bin/:$PATH"' >> "$HOME"/.bashrc
+    source_bashrc
 }
 
 check_for_local_bin_in_bashrc() {
     echo -e "${GREEN}Checking for $HOME/.local/bin in $HOME/.bashrc${SET}"
-    local_bin_in_bashrc=$(grep "$HOME/.local/bin/" "$HOME"/.bashrc)
+    local_bin_in_bashrc=$(grep "local/bin/" "$HOME"/.bashrc)
     if [ -z "${local_bin_in_bashrc}" ]
         then 
         add_local_bin_to_bashrc
-        source_bashrc
     fi 
 }
 
@@ -267,7 +274,7 @@ add_local_bin_to_zshrc() {
 
 check_for_local_bin_in_zshrc() {
     echo -e "${GREEN}Checking for $HOME/.local/bin in $HOME/.zshrc${SET}"
-    local_bin_in_zshrc=$(grep "$HOME/.local/bin/" "$HOME"/.zshrc)
+    local_bin_in_zshrc=$(grep "local/bin/" "$HOME"/.zshrc)
     if [ -z "${local_bin_in_zshrc}" ]
         then 
         add_local_bin_to_zshrc
@@ -288,8 +295,8 @@ installing_binaries_to_local_bin() {
 }
 
 check_cardano_cli_installation() {
-    echo -e "${GREEN}Checking Cardano CLI installation${SET}"
-    if ! type cardano-cli > /dev/null
+    echo -e "${GREEN}Checking cardano-cli installation${SET}"
+    if ! type cardano-cli >/dev/null 2>&1
         then 
         echo -e "${RED}Failed installing cardano-cli${SET}"
         exit 1
@@ -299,8 +306,8 @@ check_cardano_cli_installation() {
 }
 
 check_cardano_node_installation() {
-    echo -e "${GREEN}Checking Cardano Node installation${SET}"
-    if ! type cardano-node > /dev/null
+    echo -e "${GREEN}Checking cardano-node installation${SET}"
+    if ! type cardano-node >/dev/null 2>&1
         then 
         echo -e "${RED}Failed installing cardano-node${SET}"
         exit 1
@@ -310,13 +317,14 @@ check_cardano_node_installation() {
 }
 
 check_installation() {
+    source_bashrc
     echo -e "${GREEN}Checking binaries${SET}"
     check_cardano_cli_installation
     check_cardano_node_installation
 }
 
 run() {
-    echo -e "${GREEN}This script will install Cardano Node and its components to $HOME/cardano${SET}"
+    echo -e "${GREEN}This script will install cardano-node and its components to $HOME/cardano${SET}"
     update
     check_dependencies
     check_existing_workdir
