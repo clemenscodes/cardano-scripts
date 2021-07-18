@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env sh
 echo
 echo "Checking for installed executable of cardano-node"
 echo
@@ -53,11 +53,25 @@ if ! [ -d "$workdir"/config ]; then
 
 fi
 
-echo 
-echo "Setting the CARDANO_NODE_SOCKET_PATH ENV for IPC"
+socket_in_bashrc=$(cat $HOME/.bashrc | grep CARDANO)
+socket_in_zshrc=$(cat $HOME/.zshrc | grep CARDANO)
+
 echo
-echo 'export CARDANO_NODE_SOCKET_PATH="$HOME/cardano/db/node.socket"' >> "$HOME"/.bashrc
-echo 'export CARDANO_NODE_SOCKET_PATH="$HOME/cardano/db/node.socket"' >> "$HOME"/.zshrc
+echo "Checking for the CARDANO_NODE_SOCKET_PATH ENV for IPC"
+echo
+
+if [ -z "${socket_in_bashrc}" ]
+    then 
+    echo "Setting CARDANO_NODE_SOCKET_PATH ENV for IPC to $HOME/.bashrc"
+    echo 'export CARDANO_NODE_SOCKET_PATH="$HOME/cardano/db/node.socket"' >> "$HOME"/.bashrc
+fi 
+
+if [ -z "${socket_in_zshrc}" ]
+    then 
+    echo "Setting CARDANO_NODE_SOCKET_PATH ENV for IPC to $HOME/.zshrc"
+    echo 'export CARDANO_NODE_SOCKET_PATH="$HOME/cardano/db/node.socket"' >> "$HOME"/.zshrc
+fi 
+
 echo
 echo "Running the node"
 echo
