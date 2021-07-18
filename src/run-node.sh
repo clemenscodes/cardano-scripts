@@ -1,27 +1,78 @@
 #!/bin/sh
+echo
+echo "Checking for installed executable of cardano-node"
+echo
+
+if ! type cardano-node > /dev/null; 
+then 
+./install-latest-node.sh
+fi
 
 echo
 echo "Preparing to run Cardano Node"
 echo
 echo "Working in $HOME/cardano"
 
-cd "$HOME"/cardano || exit
+workdir="$HOME/cardano"
+
+cd "$workdir" || exit
 
 echo
-echo "Obtaining Cardano Blockchain Mainnet Network Configuration files"
+echo "Checking for config files"
 echo
 
-wget https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/mainnet-config.json
-wget https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/mainnet-byron-genesis.json
-wget https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/mainnet-shelley-genesis.json
-wget https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/mainnet-topology.json
+if ! [ -d "$workdir"/config ]; then 
 
+    echo
+    echo "No config files found"
+    echo
+    echo "Obtaining Cardano Blockchain Mainnet Network Configuration files"
+    echo
+
+    mkdir -p "$workdir"/config/mainnet 
+
+    cd "$workdir"/config/mainnet || exit
+
+    wget https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/mainnet-config.json
+    wget https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/mainnet-byron-genesis.json
+    wget https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/mainnet-shelley-genesis.json
+    wget https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/mainnet-topology.json
+
+    echo
+    echo "Obtaining Cardano Blockchain Testnet Network Configuration files"
+    echo
+
+    mkdir -p "$workdir"/config/testnet
+
+    cd "$workdir"/config/testnet|| exit
+
+    wget https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/testnet-config.json
+    wget https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/testnet-byron-genesis.json
+    wget https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/testnet-shelley-genesis.json
+    wget https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/testnet-topology.json
+
+fi
+
+echo 
+echo "Setting the CARDANO_NODE_SOCKET_PATH ENV for IPC"
 echo
-echo "Obtaining Cardano Blockchain Testnet Network Configuration files"
+echo 'export CARDANO_NODE_SOCKET_PATH="$HOME/cardano/db/node.socket"' >> "$HOME"/.bashrc
+echo 'export CARDANO_NODE_SOCKET_PATH="$HOME/cardano/db/node.socket"' >> "$HOME"/.zshrc
+echo
+echo "Running the node"
 echo
 
-wget https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/testnet-config.json
-wget https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/testnet-byron-genesis.json
-wget https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/testnet-shelley-genesis.json
-wget https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/testnet-topology.json
+config="$workdir/config/testnet/testnet-config.json"
+db="$workdir/db"
+socket="$workdir/db/node.socket"
+host="127.0.0.1"
+port=1337
+topology="$workdir/config/testnet/testnet-topology.json"
 
+cardano-node run \
+--config "$config" \
+--database-path "$db" \
+--socket-path "$socket" \
+--host-addr $host \
+--port $port \
+--topology "$topology"
