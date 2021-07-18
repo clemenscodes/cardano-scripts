@@ -24,6 +24,7 @@ install_nix() {
     curl -L https://nixos.org/nix/install > install-nix.sh
     chmod +x install-nix.sh
     ./install-nix.sh
+    rm ./install-nix.sh
     source_bashrc
 }
 
