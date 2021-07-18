@@ -1,4 +1,8 @@
 #!/bin/sh
+echo
+echo "This script will install Cardano Node and its components to $HOME/cardano"
+
+workdir="$HOME/cardano"
 
 echo
 echo "Installing Operating System dependencies"
@@ -6,6 +10,22 @@ echo
 
 sudo apt-get update -y
 sudo apt-get install automake build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev libsystemd-dev zlib1g-dev make g++ tmux git jq wget libncursesw5 libtool autoconf -y;
+
+echo
+echo "Checking for Nix"
+echo
+
+if ! type nix > /dev/null; 
+then
+curl -L https://nixos.org/nix/install > install-nix.sh
+chmod +x install-nix.sh
+./install-nix.sh
+sudo mkdir -p /etc/nix
+cat <<EOF | sudo tee /etc/nix/nix.conf
+substituters = https://cache.nixos.org https://hydra.iohk.io
+trusted-public-keys = iohk.cachix.org-1:DpRUyj7h7V830dp/i6Nti+NEO2/nhblbov/8MW7Rqoo= hydra.iohk.io:f/Ea+s+dFdN+3Y/G+FDgSq+a5NEWhJGzdjvKNGv0/EQ= cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=
+EOF
+fi
 
 echo
 echo "Checking for ghcup"
@@ -27,20 +47,19 @@ fi
 ghc --version;
 cabal --version;
 
-if [ -d ~/cardano ];
+if [ -d "$workdir" ];
 then
     echo
     echo "Cleaning up..."
     echo
-    rm -rf ~/cardano
+    rm -rf "$workdir"
 fi;
 
 echo 
-echo "Downloading libsodium to ~/cardano-src"
+echo "Downloading libsodium to $workdir"
 echo
-
-mkdir -p ~/cardano
-cd ~/cardano || exit 
+mkdir -p "$workdir" 
+cd "$workdir" || exit 
 git clone https://github.com/input-output-hk/libsodium
 cd libsodium || exit
 git checkout 66f017f1
@@ -60,13 +79,21 @@ echo
 . "$HOME"/.bashrc
 
 echo
-echo "Downloading cardano-node repository to ~/cardano"
+echo "Downloading cardano-node and db-sync repository to $workdir"
 echo
 
 node_version=$(curl -s https://api.github.com/repos/input-output-hk/cardano-node/releases/latest | grep '"tag_name":' |  sed -E 's/.*"([^"]+)".*/\1/')
 
-cd ~/cardano || exit 
+cd "$workdir" || exit 
 git clone https://github.com/input-output-hk/cardano-node.git
+git clone https://github.com/input-output-hk/cardano-db-sync.git
+
+echo
+echo "Creating folder structure"
+echo
+
+mkdir -p "$workdir"/db
+
 cd cardano-node || exit
 git checkout tags/"${node_version}"
 
