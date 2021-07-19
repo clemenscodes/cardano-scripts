@@ -78,12 +78,10 @@ find_shell() {
 	case $SHELL in
 		*/zsh)
 			SHELL_PROFILE_FILE="$HOME/.zshrc"
-            MY_SHELL="zsh"
-            return ;;
+            MY_SHELL="zsh" ;;
 		*/bash)
 			SHELL_PROFILE_FILE="$HOME/.bashrc"
-            MY_SHELL="bash"
-            return ;;
+            MY_SHELL="bash" ;;
 		*/sh) 
 			if [ -n "${BASH}" ]; then
 				SHELL_PROFILE_FILE="$HOME/.bashrc"
@@ -91,11 +89,8 @@ find_shell() {
 			elif [ -n "${ZSH_VERSION}" ]; then
 				SHELL_PROFILE_FILE="$HOME/.zshrc"
                 MY_SHELL="zsh"
-			else
-				return 
-			fi
-			return ;;
-		*) return ;;
+			fi ;;
+		*) ;;
 	esac
 }
 
@@ -106,21 +101,13 @@ ask_rc() {
         white "[y] Yes  [n] No  [?] Help"
         read -r rc_answer </dev/tty
 		case $rc_answer in
-			[Yy]* | "") 
-                :
-                green "Proceeding to add PATH variables for ${MY_SHELL}"
-                return 1;;
-			[Nn]*)
-                :
-                red "Skipped, installer might fail, but you know best"
-                return 0;;
+			[Yy]* | "") green "Proceeding to add PATH variables for ${MY_SHELL}" && return 1;;
+			[Nn]*) red "Skipped, installer might fail, but you know best" && return 0;;
 			*)
-                :
 				white "Possible choices are:"
 				green "Y - Yes (default)"
 				red "N - No, don't mess with my configuration"
-				white "Please make your choice and press ENTER."
-				;;
+				white "Please make your choice and press ENTER." ;;
 		esac
 	done
 	unset rc_answer
@@ -139,13 +126,8 @@ check_for_path_variables() {
 
 adjust_rc() {
     case $1 in
-		1)
-            :
-            check_for_path_variables
-            return ;;
-		*) 
-            :
-            return ;;
+		1) check_for_path_variables ;;
+		*) ;;
 	esac
 }
 
@@ -158,24 +140,17 @@ install_os_packages() {
     dist=$(lsb_release -is)
     case "${dist}" in 
         Fedora*|Hat*|CentOs*)
-            : 
             white "Updating and installing operating system dependencies"
             (spinner & sudo yum update -y > /dev/null 2>&1 
             sudo yum install git gcc gcc-c++ tmux gmp-devel make tar xz wget zlib-devel libtool autoconf -y > /dev/null 2>&1
             sudo yum install systemd-devel ncurses-devel ncurses-compat-libs -y > /dev/null 2>&1
-            touch stopspinning)
-            ;;
+            touch stopspinning) ;;
         Ubuntu*|Debian*)
-            :
             white "Updating and installing operating system dependencies"
             (spinner & sudo apt-get update -y > /dev/null 2>&1
             sudo apt-get install automake build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev libsystemd-dev zlib1g-dev make g++ tmux git jq wget libncursesw5 libtool autoconf -y > /dev/null;
-            touch stopspinning)
-            ;;
-        *) 
-            :
-            red "Unsupported operating system :("
-            exit 1
+            touch stopspinning) ;;
+        *) red "Unsupported operating system :(" && exit 1
     esac
 }
 
@@ -254,8 +229,10 @@ create_workdir() {
 check_existing_workdir() {
     white "Checking for existing working directory in ${WORK_DIR}"
     if ! [ -d "${WORK_DIR}" ]; then
-        red "Working directory not found..."
         create_workdir
+    else
+        red "${WORK_DIR} already exists, aborting..." 
+        exit 1
     fi
 }
 
@@ -282,7 +259,6 @@ install_libsodium() {
 check_for_libsodium() {
     white "Checking for existing libsodium"
     if ! [ -d "${WORK_DIR}"/libsodium ]; then
-        red "No libsodium found"
         install_libsodium
     else
         green "Skipping installation of libsodium"
@@ -327,8 +303,8 @@ checkout_latest_node_version() {
 
 configure_build_options() {
     white "Configuring the build options to build with GHC version 8.10.4"
-    (spinner & cabal configure --with-compiler=ghc-8.10.4 > /dev/null 2>&1
-    touch stopspinning)
+    (spinner & cabal configure --with-compiler=ghc-8.10.4 > /dev/null)
+    touch stopspinning
     green "Configured build options"
 }
 
@@ -345,9 +321,9 @@ build_latest_node_version() {
     checkout_latest_node_version
     configure_build_options
     update_local_project_file_to_use_libsodium_compiler
-    green "Building and installing the node to produce executables binaries"
-    (spinner & cabal build all > /dev/null 2>&1 
-    touch stopspinning)
+    green "Building and installing the node to produce executables binaries, this might take a while..."
+    (spinner & cabal build all > /dev/null)
+    touch stopspinning
 }
 
 check_for_binary_install_directory() {
