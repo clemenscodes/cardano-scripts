@@ -1,24 +1,29 @@
 #!/usr/bin/env sh
 
 WORK_DIR="$HOME/cardano"
-SPINNER_COLORNUM=2 
-SPINNER_COLORCYCLE=1 
-SPINNER_DONEFILE="stopspinning" 
-SPINNER_SYMBOLS="UNI_DOTS2"
-SPINNER_CLEAR=1 
 
-# Handle signals
-cleanup () {
-	tput rc
-	tput cnorm
-	return 1
+green() {
+    printf "\\033[0;32m%s\\033[0m\\n" "$1"
 }
-# This tries to catch any exit, to reset cursor
-trap cleanup INT QUIT TERM
 
+red() {
+    printf "\\033[0;31m%s\\033[0m\\n" "$1"
+}
+
+white() {
+    printf "\033[1;37m%s\\033[0m\\n" "$1"
+}
+
+
+# Source: https://github.com/swelljoe/spinner
 spinner () {
+    SPINNER_COLORNUM=2 
+    SPINNER_COLORCYCLE=1 
+    SPINNER_DONEFILE="stopspinning" 
+    SPINNER_SYMBOLS="UNI_DOTS2"
+    SPINNER_CLEAR=1 
+    # shellcheck disable=SC2034
     UNI_DOTS2="⣾ ⣽ ⣻ ⢿ ⡿ ⣟ ⣯ ⣷"
-    local SPINNER_NORMAL
     SPINNER_NORMAL=$(tput sgr0)
     eval SYMBOLS=\$${SPINNER_SYMBOLS}
     SPINNER_PPID=$(ps -p "$$" -o ppid=)
@@ -57,17 +62,17 @@ spinner () {
     return 0
 }
 
-green() {
-    printf "\\033[0;32m%s\\033[0m\\n" "$1"
+# Source: https://github.com/swelljoe/spinner
+# Handle signals
+cleanup () {
+	tput rc
+	tput cnorm
+	return 1
 }
 
-red() {
-    printf "\\033[0;31m%s\\033[0m\\n" "$1"
-}
-
-white() {
-    printf "\033[1;37m%s\\033[0m\\n" "$1"
-}
+# Source: https://github.com/swelljoe/spinner
+# This tries to catch any exit, to reset cursor
+trap cleanup INT QUIT TERM
 
 find_shell() {
 	case $SHELL in
@@ -102,12 +107,15 @@ ask_rc() {
         read -r rc_answer </dev/tty
 		case $rc_answer in
 			[Yy]* | "") 
+                :
                 green "Proceeding to add PATH variables for ${MY_SHELL}"
                 return 1;;
 			[Nn]*)
+                :
                 red "Skipped, installer might fail, but you know best"
                 return 0;;
 			*)
+                :
 				white "Possible choices are:"
 				green "Y - Yes (default)"
 				red "N - No, don't mess with my configuration"
@@ -120,29 +128,24 @@ ask_rc() {
 
 check_for_path_variables() {
     ld=$(grep LD_LIBRARY_PATH "${SHELL_PROFILE_FILE}")
-    if [ -z "${ld}" ]; then 
-			echo 'export LD_LIBRARY_PATH="/usr/local/lib:$LD_LIBRARY_PATH"' >> "${SHELL_PROFILE_FILE}"
-    fi
     pkg=$(grep PKG_CONFIG_PATH "${SHELL_PROFILE_FILE}")
-    if [ -z "${pkg}" ]; then 
-			echo 'export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH"' >> "${SHELL_PROFILE_FILE}"
-    fi
     bin=$(grep .local/bin/ "${SHELL_PROFILE_FILE}")
-    if [ -z "${bin}" ]; then 
-			echo 'export PATH="$HOME/.local/bin/:$PATH"' >> "${SHELL_PROFILE_FILE}"
-    fi
     socket=$(grep CARDANO_NODE_SOCKET_PATH "${SHELL_PROFILE_FILE}")
-    if [ -z "${socket}" ]; then 
-			echo 'export CARDANO_NODE_SOCKET_PATH="$HOME/cardano/db/node.socket"' >> "${SHELL_PROFILE_FILE}"
-    fi
+    [ -z "${ld}" ] && echo 'export LD_LIBRARY_PATH="/usr/local/lib:$LD_LIBRARY_PATH"' >> "${SHELL_PROFILE_FILE}"
+    [ -z "${pkg}" ] && echo 'export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH"' >> "${SHELL_PROFILE_FILE}"
+    [ -z "${bin}" ] && echo 'export PATH="$HOME/.local/bin/:$PATH"' >> "${SHELL_PROFILE_FILE}"
+    [ -z "${socket}" ] && echo 'export CARDANO_NODE_SOCKET_PATH="$HOME/cardano/db/node.socket"' >> "${SHELL_PROFILE_FILE}"
 }
 
 adjust_rc() {
     case $1 in
 		1)
+            :
             check_for_path_variables
             return ;;
-		*) return ;;
+		*) 
+            :
+            return ;;
 	esac
 }
 
