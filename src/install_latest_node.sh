@@ -20,10 +20,10 @@ spinner () {
     SPINNER_COLORNUM=2 
     SPINNER_COLORCYCLE=1 
     SPINNER_DONEFILE="stopspinning" 
-    SPINNER_SYMBOLS="UNI_DOTS2"
+    SPINNER_SYMBOLS="ASCII_PROPELLER"
     SPINNER_CLEAR=1 
     # shellcheck disable=SC2034
-    UNI_DOTS2="⣾ ⣽ ⣻ ⢿ ⡿ ⣟ ⣯ ⣷"
+    ASCII_PROPELLER="/ - \\ |"
     SPINNER_NORMAL=$(tput sgr0)
     eval SYMBOLS=\$${SPINNER_SYMBOLS}
     SPINNER_PPID=$(ps -p "$$" -o ppid=)
@@ -231,8 +231,7 @@ check_existing_workdir() {
     if ! [ -d "${WORK_DIR}" ]; then
         create_workdir
     else
-        red "${WORK_DIR} already exists, aborting..." 
-        exit 1
+        green "${WORK_DIR} already exists, skipping"
     fi
 }
 
@@ -258,7 +257,7 @@ install_libsodium() {
 
 check_for_libsodium() {
     white "Checking for existing libsodium"
-    if ! [ -d "${WORK_DIR}"/libsodium ]; then
+    if ! [ -d "${WORK_DIR}/libsodium" ]; then
         install_libsodium
     else
         green "Skipping installation of libsodium"
@@ -266,23 +265,35 @@ check_for_libsodium() {
 }
 
 download_cardano_node_repository() {
-    white "Downloading cardano-node repository"
-    (spinner & git clone https://github.com/input-output-hk/cardano-node.git > /dev/null 2>&1
-    touch stopspinning)
-    green "Downloaded cardano-node repository"
+    if ! [ -d "${WORK_DIR}/cardano-node" ]; then
+        white "Downloading cardano-node repository"
+        (spinner & git clone https://github.com/input-output-hk/cardano-node.git > /dev/null 2>&1
+        touch stopspinning)
+        green "Downloaded cardano-node repository"
+    else 
+        green "cardano-node repository found, skip pulling"
+    fi 
 }
 
 download_cardano_db_sync_repository() {
-    white "Downloading cardano-db-sync repository"
-    (spinner & git clone https://github.com/input-output-hk/cardano-db-sync.git > /dev/null 2>&1
-    touch stopspinning)
-    green "Downloaded cardano-db-sync repository"
+    if ! [ -d "${WORK_DIR}/cardano-db-sync" ]; then
+        white "Downloading cardano-db-sync repository"
+        (spinner & git clone https://github.com/input-output-hk/cardano-db-sync.git > /dev/null 2>&1
+        touch stopspinning)
+        green "Downloaded cardano-db-sync repository"
+    else
+        green "cardano-db-sync repository found, skip pulling"
+    fi 
 }
 
 create_db_folder() {
-    white "Adding db folder to working directory"
-    mkdir -p "${WORK_DIR}"/db
-    green "Created db folder"
+    if ! [ -d "${WORK_DIR}/db" ]; then 
+        white "Adding db folder to working directory"
+        mkdir -p "${WORK_DIR}"/db
+        green "Created db folder"
+    else 
+        green "db folder found, skip creating"
+    fi
 }
 
 download_cardano_repositories_to_workdir() {
@@ -295,15 +306,14 @@ download_cardano_repositories_to_workdir() {
 checkout_latest_node_version() {
     cd "${WORK_DIR}"/cardano-node || exit
     white "Fetching latest node version"
-    (spinner & latest_node_version=$(curl -s https://api.github.com/repos/input-output-hk/cardano-node/releases/latest | grep '"tag_name":' |  sed -E 's/.*"([^"]+)".*/\1/' > /dev/null 2>&1) 
+    latest_node_version=$(curl -s https://api.github.com/repos/input-output-hk/cardano-node/releases/latest | grep '"tag_name":' |  sed -E 's/.*"([^"]+)".*/\1/' > /dev/null 2>&1) 
     git checkout tags/"${latest_node_version}" > /dev/null 2>&1
-    touch stopspinning)
-    green "Successfully checked out latest node version"
+    green "Successfully checked out latest node version $latest_node_version"
 }
 
 configure_build_options() {
     white "Configuring the build options to build with GHC version 8.10.4"
-    (spinner & cabal configure --with-compiler=ghc-8.10.4 > /dev/null)
+    (spinner & cabal configure --with-compiler=ghc-8.10.4 > /dev/null 2>&1)
     touch stopspinning
     green "Configured build options"
 }
@@ -322,7 +332,7 @@ build_latest_node_version() {
     configure_build_options
     update_local_project_file_to_use_libsodium_compiler
     green "Building and installing the node to produce executables binaries, this might take a while..."
-    (spinner & cabal build all > /dev/null)
+    (spinner & cabal build all > /dev/null 2>&1)
     touch stopspinning
 }
 
@@ -365,7 +375,7 @@ check_installation() {
     check_cardano_node_installation
 }
 
-run() {
+main() {
     white "Installing the latest cardano-node and its components to $HOME/cardano"
     get_root_privileges
     find_shell
@@ -381,4 +391,4 @@ run() {
     green "Source your shell to use the installed binaries"
 }
 
-run
+main

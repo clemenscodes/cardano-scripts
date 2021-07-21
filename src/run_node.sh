@@ -5,8 +5,20 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'    
 SET='\033[0m'
 
+green() {
+    printf "\\033[0;32m%s\\033[0m\\n" "$1"
+}
+
+red() {
+    printf "\\033[0;31m%s\\033[0m\\n" "$1"
+}
+
+white() {
+    printf "\033[1;37m%s\\033[0m\\n" "$1"
+}
+
 install_cardano_node() {
-    ./install-latest-node.sh
+    ./install_latest_node.sh
 }
 
 check_for_installed_cardano_node() {
@@ -26,6 +38,7 @@ get_mainnet_config_files() {
     wget https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/mainnet-byron-genesis.json
     wget https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/mainnet-shelley-genesis.json
     wget https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/mainnet-topology.json
+    wget https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/mainnet-alonzo-genesis.json
 }
 
 get_testnet_config_files() {
@@ -36,6 +49,7 @@ get_testnet_config_files() {
     wget https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/testnet-byron-genesis.json
     wget https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/testnet-shelley-genesis.json
     wget https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/testnet-topology.json
+    wget https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/testnet-alonzo-genesis.json
 }
 
 check_for_config_files() {
@@ -55,7 +69,7 @@ check_for_cardano_socket_path_in_bashrc() {
     if [ -z "${socket_in_bashrc}" ]
         then 
         echo -e "${GREEN}Setting CARDANO_NODE_SOCKET_PATH ENV for IPC to $HOME/.bashrc${SET}"
-        echo 'export CARDANO_NODE_SOCKET_PATH="$HOME/cardano/db/node.socket"' >> "$HOME"/.bashrc
+        echo 'export CARDANO_NODE_SOCKET_PATH="$HOME/cardano/ipc/node.socket"' >> "$HOME"/.bashrc
     fi 
 }
  
@@ -65,7 +79,7 @@ check_for_cardano_socket_path_in_zshrc() {
     if [ -z "${socket_in_zshrc}" ]
         then 
         echo -e "${GREEN}Setting CARDANO_NODE_SOCKET_PATH ENV for IPC to $HOME/.zshrc${SET}"
-        echo 'export CARDANO_NODE_SOCKET_PATH="$HOME/cardano/db/node.socket"' >> "$HOME"/.zshrc
+        echo 'export CARDANO_NODE_SOCKET_PATH="$HOME/cardano/ipc/node.socket"' >> "$HOME"/.zshrc
     fi 
 }
 
@@ -77,12 +91,13 @@ check_for_cardano_socket_path() {
 
 run_cardano_node() {
     echo -e "${GREEN}Preparing to run cardano node${SET}"
-    config="$workdir/config/testnet/testnet-config.json"
-    db="$workdir/db"
-    socket="$workdir/db/node.socket"
+    ask_network
+    config="$workdir/config/$network/$network-config.json"
+    db="$workdir/data/db"
+    socket="$workdir/ipc/node.socket"
     host="127.0.0.1"
     port=1337
-    topology="$workdir/config/testnet/testnet-topology.json"
+    topology="$workdir/config/$network/$network-topology.json"
     echo -e "${GREEN}Running Cardano Node${SET}"
     cardano-node run \
     --config "$config" \
@@ -91,6 +106,30 @@ run_cardano_node() {
     --host-addr $host \
     --port $port \
     --topology "$topology"
+}
+
+
+ask_network() {
+    while true; do
+        white "[M] Mainnet [T] Testnet [?] Help (Default is testnet)"
+        read -r network
+		case $network in
+			[Tt]* | "") 
+                white "Proceeding to run a testnet node"
+                network="testnet"
+                return 0;;
+			[Mm]*)
+                white "Proceeding to run a mainnet node"
+                network="mainnet"
+                return 0;;
+			*)
+				white "Possible choices are:"
+				white "M - Mainnet (default)"
+				white "T - Testnet"
+				white "Please make your choice and press ENTER." ;;
+		esac
+	done
+	unset network
 }
 
 run() {
