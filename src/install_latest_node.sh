@@ -121,7 +121,7 @@ check_for_path_variables() {
     [ -z "${ld}" ] && echo 'export LD_LIBRARY_PATH="/usr/local/lib:$LD_LIBRARY_PATH"' >> "${SHELL_PROFILE_FILE}"
     [ -z "${pkg}" ] && echo 'export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH"' >> "${SHELL_PROFILE_FILE}"
     [ -z "${bin}" ] && echo 'export PATH="$HOME/.local/bin/:$PATH"' >> "${SHELL_PROFILE_FILE}"
-    [ -z "${socket}" ] && echo 'export CARDANO_NODE_SOCKET_PATH="$HOME/cardano/db/node.socket"' >> "${SHELL_PROFILE_FILE}"
+    [ -z "${socket}" ] && echo 'export CARDANO_NODE_SOCKET_PATH="$HOME/cardano/ipc/node.socket"' >> "${SHELL_PROFILE_FILE}"
 }
 
 adjust_rc() {
@@ -289,14 +289,15 @@ download_cardano_db_sync_repository() {
 create_folders() {
     if ! [ -d "${WORK_DIR}/data/db" ]; then 
         white "Adding db folder to working directory"
-        mkdir -p "${WORK_DIR}"/data/db
-        green "Created data/db folders"
+        mkdir -p "${WORK_DIR}"/data/db/mainnet
+        mkdir -p "${WORK_DIR}"/data/db/testnet
+        green "Created mainnet and testnet folders in ${WORK_DIR}/data/db/ folder"
     else 
         green "data/db folder found, skip creating"
     fi
     if ! [ -d "${WORK_DIR}/ipc" ]; then 
         white "Adding ipc folder"
-        mkdir -p "$WORK_DIR/ipc"
+        mkdir -p "${WORK_DIR}/ipc"
     else
         green "ipc folder found, skip creating"
     fi

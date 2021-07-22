@@ -1,9 +1,6 @@
 #!/usr/bin/env bash
 
 workdir="$HOME/cardano"
-RED='\033[0;31m'    
-GREEN='\033[0;32m'    
-SET='\033[0m'
 
 green() {
     printf "\\033[0;32m%s\\033[0m\\n" "$1"
@@ -17,104 +14,82 @@ white() {
     printf "\033[1;37m%s\\033[0m\\n" "$1"
 }
 
+spinner () {
+    SPINNER_COLORNUM=2 
+    SPINNER_COLORCYCLE=1 
+    SPINNER_DONEFILE="stopspinning" 
+    SPINNER_SYMBOLS="ASCII_PROPELLER"
+    SPINNER_CLEAR=1 
+    # shellcheck disable=SC2034
+    ASCII_PROPELLER="/ - \\ |"
+    SPINNER_NORMAL=$(tput sgr0)
+    eval SYMBOLS=\$${SPINNER_SYMBOLS}
+    SPINNER_PPID=$(ps -p "$$" -o ppid=)
+    while :; do
+        tput civis
+        for c in ${SYMBOLS}; do
+            if [ $SPINNER_COLORCYCLE -eq 1 ]; then
+                if [ $SPINNER_COLORNUM -eq 7 ]; then
+                    SPINNER_COLORNUM=1
+                else
+                    SPINNER_COLORNUM=$((SPINNER_COLORNUM+1))
+                fi
+            fi
+            COLOR=$(tput setaf ${SPINNER_COLORNUM})
+            tput sc
+            env printf "${COLOR}${c}${SPINNER_NORMAL}"
+            tput rc
+            if [ -f "${SPINNER_DONEFILE}" ]; then
+                if [ ${SPINNER_CLEAR} -eq 1 ]; then
+                    tput el
+                fi
+                rm ${SPINNER_DONEFILE}
+                break 2
+            fi
+            env sleep .2
+            if [ -n "$SPINNER_PPID" ]; then
+                # shellcheck disable=SC2086
+                SPINNER_PARENTUP=$(ps --no-headers $SPINNER_PPID)
+                if [ -z "$SPINNER_PARENTUP" ]; then
+                    break 2
+                fi
+            fi
+        done
+    done
+    tput cnorm
+    return 0
+}
+
+# Source: https://github.com/swelljoe/spinner
+# Handle signals
+cleanup () {
+	tput rc
+	tput cnorm
+	return 1
+}
+
+# Source: https://github.com/swelljoe/spinner
+# This tries to catch any exit, to reset cursor
+trap cleanup INT QUIT TERM
+
+
+
 install_cardano_node() {
     ./install_latest_node.sh
 }
 
 check_for_installed_cardano_node() {
-    echo -e "${GREEN}Checking for installed executable of cardano-node${SET}"
+    white "Checking for installed executable of cardano-node"
     if ! type cardano-node >/dev/null 2>&1
         then 
-        echo -e "${RED}No cardano-node executable found${SET}"
+        red "No cardano-node executable found"
         install_cardano_node
     fi
 }
 
-get_mainnet_config_files() {
-    echo -e "${GREEN}Fetching cardano blockchain mainnet network configuration files${SET}"
-    mkdir -p "$workdir"/config/mainnet 
-    cd "$workdir"/config/mainnet || exit
-    wget https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/mainnet-config.json
-    wget https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/mainnet-byron-genesis.json
-    wget https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/mainnet-shelley-genesis.json
-    wget https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/mainnet-topology.json
-    wget https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/mainnet-alonzo-genesis.json
-}
-
-get_testnet_config_files() {
-    echo -e "${GREEN}Fetching cardano blockchain testnet network configuration files${SET}"
-    mkdir -p "$workdir"/config/testnet
-    cd "$workdir"/config/testnet|| exit
-    wget https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/testnet-config.json
-    wget https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/testnet-byron-genesis.json
-    wget https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/testnet-shelley-genesis.json
-    wget https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/testnet-topology.json
-    wget https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/testnet-alonzo-genesis.json
-}
-
-check_for_config_files() {
-    echo -e "${GREEN}Checking for config files${SET}"
-    if ! [ -d "$workdir"/config ]; then
-        echo -e "${RED}No config files found${SET}"
-        get_mainnet_config_files
-        get_testnet_config_files
-    elif ! [ -d "$workdir/config/mainnet" ]; then
-        get_mainnet_config_files
-    elif ! [ -d "$workdir/config/testnet" ]; then
-        get_testnet_config_files
-   fi
-}
-
-
-check_for_cardano_socket_path_in_bashrc() {
-    echo -e "${GREEN}Checking for CARDANO_NODE_SOCKET_PATH in $HOME/.bashrc${SET}"
-    socket_in_bashrc=$(cat $HOME/.bashrc | grep CARDANO)
-    if [ -z "${socket_in_bashrc}" ]
-        then 
-        echo -e "${GREEN}Setting CARDANO_NODE_SOCKET_PATH ENV for IPC to $HOME/.bashrc${SET}"
-        echo 'export CARDANO_NODE_SOCKET_PATH="$HOME/cardano/ipc/node.socket"' >> "$HOME"/.bashrc
-    fi 
-}
- 
-check_for_cardano_socket_path_in_zshrc() {
-    echo -e "${GREEN}Checking for CARDANO_NODE_SOCKET_PATH $HOME/.zshrc${SET}"
-    socket_in_zshrc=$(cat $HOME/.zshrc | grep CARDANO)
-    if [ -z "${socket_in_zshrc}" ]
-        then 
-        echo -e "${GREEN}Setting CARDANO_NODE_SOCKET_PATH ENV for IPC to $HOME/.zshrc${SET}"
-        echo 'export CARDANO_NODE_SOCKET_PATH="$HOME/cardano/ipc/node.socket"' >> "$HOME"/.zshrc
-    fi 
-}
-
-check_for_cardano_socket_path() {
-    echo -e "${GREEN}Checking for the CARDANO_NODE_SOCKET_PATH ENV for IPC${SET}"
-    check_for_cardano_socket_path_in_bashrc
-    check_for_cardano_socket_path_in_zshrc
-}
-
-run_cardano_node() {
-    echo -e "${GREEN}Preparing to run cardano node${SET}"
-    ask_network
-    config="$workdir/config/$network/$network-config.json"
-    db="$workdir/data/db"
-    socket="$workdir/ipc/node.socket"
-    host="127.0.0.1"
-    port=1337
-    topology="$workdir/config/$network/$network-topology.json"
-    echo -e "${GREEN}Running Cardano Node${SET}"
-    cardano-node run \
-    --config "$config" \
-    --database-path "$db" \
-    --socket-path "$socket" \
-    --host-addr $host \
-    --port $port \
-    --topology "$topology"
-}
-
-
 ask_network() {
     while true; do
-        white "[M] Mainnet [T] Testnet [?] Help (Default is testnet)"
+        white "[M] Mainnet [T] Testnet [?] Help (Default is T)"
         read -r network
 		case $network in
 			[Tt]* | "") 
@@ -135,12 +110,68 @@ ask_network() {
 	unset network
 }
 
-run() {
-    echo -e "${GREEN}This script runs a cardano node and installs the node if not installed${SET}"
+get_mainnet_config_files() {
+    green "Fetching cardano blockchain mainnet network configuration files"
+    mkdir -p "$workdir"/config/mainnet 
+    cd "$workdir"/config/mainnet || exit
+    (spinner & wget https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/mainnet-config.json > /dev/null 2>&1 &&
+    wget https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/mainnet-byron-genesis.json > /dev/null 2>&1 &&
+    wget https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/mainnet-shelley-genesis.json > /dev/null 2>&1 &&
+    wget https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/mainnet-topology.json > /dev/null 2>&1 && 
+    wget https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/mainnet-alonzo-genesis.json > /dev/null 2>&1)
+    touch stopspinning
+}
+
+get_testnet_config_files() {
+    green "Fetching cardano blockchain testnet network configuration files"
+    mkdir -p "$workdir"/config/testnet
+    cd "$workdir"/config/testnet|| exit
+    (spinner & wget https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/testnet-config.json > /dev/null 2>&1 &&
+    wget https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/testnet-byron-genesis.json > /dev/null 2>&1 &&
+    wget https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/testnet-shelley-genesis.json > /dev/null 2>&1 &&
+    wget https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/testnet-topology.json > /dev/null 2>&1 && 
+    wget https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/testnet-alonzo-genesis.json > /dev/null 2>&1)
+    touch stopspinning
+}
+
+check_for_config_files() {
+    white "Checking for config files"
+    if ! [ -d "$workdir"/config ]; then
+        red "No config files found"
+        get_mainnet_config_files
+        get_testnet_config_files
+    elif ! [ -d "$workdir/config/mainnet" ]; then
+        get_mainnet_config_files
+    elif ! [ -d "$workdir/config/testnet" ]; then
+        get_testnet_config_files
+   fi
+}
+
+run_cardano_node() {
+    green "Preparing to run cardano node"
+    ask_network
+    config="$workdir/config/$network/$network-config.json"
+    db="$workdir/data/db/$network"
+    socket="$workdir/ipc/node.socket"
+    host="127.0.0.1"
+    port=1337
+    topology="$workdir/config/$network/$network-topology.json"
+    green "Running Cardano Node"
+    cardano-node run \
+    --config "$config" \
+    --database-path "$db" \
+    --socket-path "$socket" \
+    --host-addr $host \
+    --port $port \
+    --topology "$topology"
+}
+
+
+main() {
+    white "This script runs a cardano node and installs the node if not installed"
     check_for_installed_cardano_node
     check_for_config_files
-    check_for_cardano_socket_path
     run_cardano_node
 }
 
-run
+main
