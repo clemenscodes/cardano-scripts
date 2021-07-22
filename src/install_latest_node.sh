@@ -33,25 +33,33 @@ white() {
 find_shell() {
 	case $SHELL in
 		*/zsh)
+            white "Found zsh"
 			SHELL_PROFILE_FILE="$HOME/.zshrc"
             MY_SHELL="zsh" ;;
 		*/bash)
+            white "Found bash"
 			SHELL_PROFILE_FILE="$HOME/.bashrc"
             MY_SHELL="bash" ;;
 		*/sh) 
+            white "Found sh"
 			if [ -n "${BASH}" ]; then
+                white "Found bash"
 				SHELL_PROFILE_FILE="$HOME/.bashrc"
                 MY_SHELL="bash"
 			elif [ -n "${ZSH_VERSION}" ]; then
+                white "Found zsh"
 				SHELL_PROFILE_FILE="$HOME/.zshrc"
                 MY_SHELL="zsh"
 			fi ;;
-		*) ;;
+		*) 
+            red "No shell found, exporting environment variables to current shell session only"
+            ;;
 	esac
 }
 
 ask_rc() {
 	while true; do
+        [ -z "${MY_SHELL}" ] && return 0
         white "Detected ${MY_SHELL}"
         white "Do you want to automatically add the required PATH variables to \"${SHELL_PROFILE_FILE}\"?"
         white "[y] Yes  [n] No  [?] Help"
@@ -69,47 +77,43 @@ ask_rc() {
 	unset rc_answer
 }
 
-check_for_path_variables() {
-    if [ -f "$SHELL_PROFILE_FILE" ]; then
-        ld=$(grep LD_LIBRARY_PATH "${SHELL_PROFILE_FILE}")
-        pkg=$(grep PKG_CONFIG_PATH "${SHELL_PROFILE_FILE}")
-        bin=$(grep .local/bin/ "${SHELL_PROFILE_FILE}")
-        socket=$(grep CARDANO_NODE_SOCKET_PATH "${SHELL_PROFILE_FILE}")
-        [ -z "${ld}" ] && echo 'export LD_LIBRARY_PATH="/usr/local/lib:$LD_LIBRARY_PATH"' >> "${SHELL_PROFILE_FILE}"
-        [ -z "${pkg}" ] && echo 'export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH"' >> "${SHELL_PROFILE_FILE}"
-        [ -z "${bin}" ] && echo 'export PATH="$HOME/.local/bin/:$PATH"' >> "${SHELL_PROFILE_FILE}"
-        [ -z "${socket}" ] && echo 'export CARDANO_NODE_SOCKET_PATH="$HOME/cardano/ipc/node.socket"' >> "${SHELL_PROFILE_FILE}"
-    else
-        white "No shell found, exporting environment variables to current shell session only"
-        export LD_LIBRARY_PATH="/usr/local/lib:$LD_LIBRARY_PATH"
-        export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH"
-        export PATH="$HOME/.local/bin/:$PATH"
-        export CARDANO_NODE_SOCKET_PATH="$HOME/cardano/ipc/node.socket"
-    fi
-}
-
 adjust_rc() {
     case $1 in
-		1) check_for_path_variables ;;
-		*) ;;
+		1) 
+            ld=$(grep LD_LIBRARY_PATH "${SHELL_PROFILE_FILE}")
+            pkg=$(grep PKG_CONFIG_PATH "${SHELL_PROFILE_FILE}")
+            bin=$(grep .local/bin/ "${SHELL_PROFILE_FILE}")
+            socket=$(grep CARDANO_NODE_SOCKET_PATH "${SHELL_PROFILE_FILE}")
+            [ -z "${ld}" ] && echo 'export LD_LIBRARY_PATH="/usr/local/lib:$LD_LIBRARY_PATH"' >> "${SHELL_PROFILE_FILE}"
+            [ -z "${pkg}" ] && echo 'export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH"' >> "${SHELL_PROFILE_FILE}"
+            [ -z "${bin}" ] && echo 'export PATH="$HOME/.local/bin/:$PATH"' >> "${SHELL_PROFILE_FILE}"
+            [ -z "${socket}" ] && echo 'export CARDANO_NODE_SOCKET_PATH="$HOME/cardano/ipc/node.socket"' >> "${SHELL_PROFILE_FILE}"
+            ;;
+		*) 
+            white "Exporting variables"
+            export LD_LIBRARY_PATH="/usr/local/lib:$LD_LIBRARY_PATH"
+            export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH"
+            export PATH="$HOME/.local/bin/:$PATH"
+            export CARDANO_NODE_SOCKET_PATH="$HOME/cardano/ipc/node.socket"
+            ;;
 	esac
 }
 
 install_os_packages() {
-        white "Detected platform ${PLATFORM} and distro ${DISTRO}"
+    white "Detected platform ${PLATFORM} and distro ${DISTRO}"
     case "${PLATFORM}" in 
         "linux" | "Linux")
             case "${DISTRO}" in 
                 Fedora*|Hat*|CentOs*)
                     white "Updating and installing operating system dependencies"
-                    yum update -y > /dev/null 2>&1 
-                    yum install curl git gcc gcc-c++ tmux gmp-devel make tar xz wget zlib-devel libtool autoconf -y  > /dev/null 2>&1
-                    yum install systemd-devel ncurses-devel ncurses-compat-libs -y > /dev/null 2>&1
+                    sudo yum update -y # > /dev/null 2>&1 
+                    sudo yum install curl git gcc gcc-c++ tmux gmp-devel make tar xz wget zlib-devel libtool autoconf -y  # > /dev/null 2>&1
+                    yum install systemd-devel ncurses-devel ncurses-compat-libs -y # > /dev/null 2>&1
                     ;;
                 Ubuntu*|Debian*)
                     white "Updating and installing operating system dependencies"
-                    apt-get update -y > /dev/null 2>&1
-                    apt-get install curl automake build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev libsystemd-dev zlib1g-dev make g++ tmux git jq wget libncursesw5 libtool autoconf -y > /dev/null 2>&1;
+                    sudo apt-get update -y # > /dev/null 2>&1
+                    sudo apt-get install curl automake build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev libsystemd-dev zlib1g-dev make g++ tmux git jq wget libncursesw5 libtool autoconf -y # > /dev/null 2>&1;
                     ;;
                 *) red "Unsupported operating system :(" && exit 1
             esac ;;
@@ -125,11 +129,10 @@ install_ghcup() {
     export BOOTSTRAP_HASKELL_VERBOSE=1
     export BOOTSTRAP_HASKELL_GHC_VERSION="${GHC_VERSION}"
     export BOOTSTRAP_HASKELL_CABAL_VERSION="${CABAL_VERSION}"
-    export BOOTSTRAP_HASKELL_INSTALL_STACK=0 
-    export BOOTSTRAP_HASKELL_INSTALL_HLS=0 
     export BOOTSTRAP_HASKELL_ADJUST_BASHRC=true
     curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh
     )
+    ghcup --version
 }
 
 check_ghcup() {
@@ -137,11 +140,15 @@ check_ghcup() {
     if ! type ghcup > /dev/null 2>&1; then 
         install_ghcup
     fi
+    . "${HOME}/.ghcup/env"
+    white "$(ghcup --version)"
 }
 
 install_ghc() {
     white "Installing GHC ${GHC_VERSION}"
     ghcup install ghc --set "${GHC_VERSION}"
+    . "${HOME}/.ghcup/env"
+    check_ghc
 }
 
 check_ghc() {
@@ -149,8 +156,13 @@ check_ghc() {
     if ! type ghc > /dev/null 2>&1; then 
         install_ghc
     elif [ "$(ghc --version | awk '{print $8}')" != "${GHC_VERSION}" ]; then
+        installed_ghc=$(ghc --version | awk '{print $8}')
+        white "Currently GHC ${installed_ghc} is installed, removing it and installing desired version ${GHC_VERSION}"
+        ghcup rm ghc "${installed_ghc}"
         install_ghc
     fi 
+    white "$(ghc --version)"
+    . "${HOME}/.ghcup/env"
 }
 
 check_cabal() {
@@ -159,14 +171,22 @@ check_cabal() {
         red "Cabal is not installed properly"
         install_cabal  
     elif [ "$(cabal --version | head -n1 | awk '{print $3}')" != "${CABAL_VERSION}" ]; then
+        installed_cabal=$(cabal --version | head -n1 | awk '{print $3}')
+        white "Currently cabal version ${installed_cabal} is installed, removing it and installing desired version ${CABAL_VERSION}"
+        ghcup rm cabal "${installed_cabal}"
         install_cabal
     fi 
+    . "${HOME}/.ghcup/env"
+    white "$(cabal --version)"
+    white "Updating cabal"
+    cabal update
 }
 
 install_cabal() {
-   white "Installing cabal ${CABAL_VERSION}" 
-   ghcup install cabal --set "${CABAL_VERSION}"
-}
+    white "Installing cabal ${CABAL_VERSION}" 
+    ghcup install cabal --set "${CABAL_VERSION}"
+    check_cabal
+   }
 
 check_dependencies() {
     check_ghcup
@@ -200,11 +220,11 @@ install_libsodium() {
     download_libsodium
     white "Installing libsodium to ${LIBSODIUM_DIR}"
     cd "${LIBSODIUM_DIR}" || exit
-    git checkout 66f017f1 > /dev/null 2>&1
-    ./autogen.sh > /dev/null 2>&1
-    ./configure > /dev/null 2>&1
-    make > /dev/null 2>&1
-    make install > /dev/null 2>&1 
+    git checkout 66f017f1 # > /dev/null 2>&1
+    ./autogen.sh # > /dev/null 2>&1
+    ./configure # > /dev/null 2>&1
+    make # > /dev/null 2>&1
+    sudo make install # > /dev/null 2>&1 
     green "Installed libsodium"
 }
 
@@ -281,6 +301,8 @@ checkout_latest_node_version() {
 configure_build_options() {
     white "Configuring the build options to build with GHC version ${GHC_VERSION}"
     [ -f "${PROJECT_FILE}" ] && rm "${PROJECT_FILE}"
+    check_cabal
+    check_ghc
     cabal configure --with-compiler=ghc-"${GHC_VERSION}" # > /dev/null 2>&1
     green "Configured build options"
 }
@@ -343,7 +365,7 @@ check_cardano_node_installation() {
     if ! [ -f "${NODE_BINARY}" ]; then 
         red "Failed installing cardano-node"
         exit 1
-    elif [ "$("{NODE_BINARY}" --version | awk '{print $2}'| head -n1)" = "${LATEST_VERSION}" ]; then
+    elif [ "$("${NODE_BINARY}" --version | awk '{print $2}'| head -n1)" = "${LATEST_VERSION}" ]; then
         cardano-node --version
         green "Successfully installed cardano-node"
     else 
@@ -360,18 +382,17 @@ check_installation() {
 main() {
     [ -z "${LATEST_VERSION}" ] && red "Couldn't fetch latest node version, exiting." && exit 1
     white "Installing the latest cardano-node (${LATEST_VERSION}) and its components to ${WORK_DIR}"
-    get_root_privileges
     find_shell
     ask_rc
     ask_rc_answer=$?
     adjust_rc $ask_rc_answer
     install_os_packages
     check_dependencies
+    check_dependencies
     check_existing_workdir
     build_latest_node_version
     installing_binaries_to_local_bin
     check_installation
-    green "Source your shell to use the installed binaries"
 }
 
 main
