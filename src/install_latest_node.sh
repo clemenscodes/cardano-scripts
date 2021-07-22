@@ -135,14 +135,14 @@ install_ghcup() {
 check_ghcup() {
     white "Checking for ghcup"
     if ! type ghcup > /dev/null 2>&1; then 
-        install_ghcup
+        install_ghcu
     fi
-    ghcup --version
 }
 
 install_ghc() {
     white "Installing GHC ${GHC_VERSION}"
     ghcup install ghc --set "${GHC_VERSION}"
+    ghc --version
 }
 
 check_ghc() {
@@ -152,7 +152,6 @@ check_ghc() {
     elif [ "$(ghc --version | awk '{print $8}')" != "${GHC_VERSION}" ]; then
         install_ghc
     fi 
-    ghc --version
 }
 
 check_cabal() {
@@ -163,13 +162,13 @@ check_cabal() {
     elif [ "$(cabal --version | head -n1 | awk '{print $3}')" != "${CABAL_VERSION}" ]; then
         install_cabal
     fi 
-    cabal --version
-    cabal update
 }
 
 install_cabal() {
-   white "Installing cabal ${CABAL_VERSION}" 
-   ghcup install cabal --set "${CABAL_VERSION}"
+    white "Installing cabal ${CABAL_VERSION}" 
+    ghcup install cabal --set "${CABAL_VERSION}"
+    cabal --version
+    cabal update
 }
 
 check_dependencies() {
@@ -364,7 +363,6 @@ check_installation() {
 main() {
     [ -z "${LATEST_VERSION}" ] && red "Couldn't fetch latest node version, exiting." && exit 1
     white "Installing the latest cardano-node (${LATEST_VERSION}) and its components to ${WORK_DIR}"
-    get_root_privileges
     find_shell
     ask_rc
     ask_rc_answer=$?
