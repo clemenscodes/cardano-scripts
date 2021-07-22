@@ -137,6 +137,7 @@ check_ghcup() {
     if ! type ghcup > /dev/null 2>&1; then 
         install_ghcup
     fi
+    ghcup --version
 }
 
 install_ghc() {
@@ -151,6 +152,7 @@ check_ghc() {
     elif [ "$(ghc --version | awk '{print $8}')" != "${GHC_VERSION}" ]; then
         install_ghc
     fi 
+    ghc --version
 }
 
 check_cabal() {
@@ -161,6 +163,8 @@ check_cabal() {
     elif [ "$(cabal --version | head -n1 | awk '{print $3}')" != "${CABAL_VERSION}" ]; then
         install_cabal
     fi 
+    cabal --version
+    cabal update
 }
 
 install_cabal() {
