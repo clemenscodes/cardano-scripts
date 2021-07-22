@@ -14,64 +14,6 @@ white() {
     printf "\033[1;37m%s\\033[0m\\n" "$1"
 }
 
-spinner () {
-    SPINNER_COLORNUM=2 
-    SPINNER_COLORCYCLE=1 
-    SPINNER_DONEFILE="stopspinning" 
-    SPINNER_SYMBOLS="ASCII_PROPELLER"
-    SPINNER_CLEAR=1 
-    # shellcheck disable=SC2034
-    ASCII_PROPELLER="/ - \\ |"
-    SPINNER_NORMAL=$(tput sgr0)
-    eval SYMBOLS=\$${SPINNER_SYMBOLS}
-    SPINNER_PPID=$(ps -p "$$" -o ppid=)
-    while :; do
-        tput civis
-        for c in ${SYMBOLS}; do
-            if [ $SPINNER_COLORCYCLE -eq 1 ]; then
-                if [ $SPINNER_COLORNUM -eq 7 ]; then
-                    SPINNER_COLORNUM=1
-                else
-                    SPINNER_COLORNUM=$((SPINNER_COLORNUM+1))
-                fi
-            fi
-            COLOR=$(tput setaf ${SPINNER_COLORNUM})
-            tput sc
-            env printf "${COLOR}${c}${SPINNER_NORMAL}"
-            tput rc
-            if [ -f "${SPINNER_DONEFILE}" ]; then
-                if [ ${SPINNER_CLEAR} -eq 1 ]; then
-                    tput el
-                fi
-                rm ${SPINNER_DONEFILE}
-                break 2
-            fi
-            env sleep .2
-            if [ -n "$SPINNER_PPID" ]; then
-                # shellcheck disable=SC2086
-                SPINNER_PARENTUP=$(ps --no-headers $SPINNER_PPID)
-                if [ -z "$SPINNER_PARENTUP" ]; then
-                    break 2
-                fi
-            fi
-        done
-    done
-    tput cnorm
-    return 0
-}
-
-# Source: https://github.com/swelljoe/spinner
-# Handle signals
-cleanup () {
-	tput rc
-	tput cnorm
-	return 1
-}
-
-# Source: https://github.com/swelljoe/spinner
-# This tries to catch any exit, to reset cursor
-trap cleanup INT QUIT TERM
-
 install_cardano_node() {
     ./install_latest_node.sh
 }
