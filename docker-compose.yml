@@ -1,6 +1,0 @@
-version: '3.3'
-services:
-    cardano-node:
-        build:
-            context: ./
-            dockerfile: cardano-node.Dockerfile
