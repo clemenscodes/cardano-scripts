@@ -128,8 +128,6 @@ install_ghcup() {
     export BOOTSTRAP_HASKELL_VERBOSE=1
     export BOOTSTRAP_HASKELL_GHC_VERSION="${GHC_VERSION}"
     export BOOTSTRAP_HASKELL_CABAL_VERSION="${CABAL_VERSION}"
-    export BOOTSTRAP_HASKELL_INSTALL_STACK=0 
-    export BOOTSTRAP_HASKELL_INSTALL_HLS=0 
     export BOOTSTRAP_HASKELL_ADJUST_BASHRC=true
     curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh
     )
@@ -146,6 +144,7 @@ check_ghcup() {
 install_ghc() {
     white "Installing GHC ${GHC_VERSION}"
     ghcup install ghc --set "${GHC_VERSION}"
+    . "${HOME}/.ghcup/env"
     check_ghc
 }
 
@@ -355,7 +354,7 @@ check_cardano_node_installation() {
     if ! [ -f "${NODE_BINARY}" ]; then 
         red "Failed installing cardano-node"
         exit 1
-    elif [ "$("{NODE_BINARY}" --version | awk '{print $2}'| head -n1)" = "${LATEST_VERSION}" ]; then
+    elif [ "$("${NODE_BINARY}" --version | awk '{print $2}'| head -n1)" = "${LATEST_VERSION}" ]; then
         cardano-node --version
         green "Successfully installed cardano-node"
     else 
@@ -383,7 +382,6 @@ main() {
     build_latest_node_version
     installing_binaries_to_local_bin
     check_installation
-    green "Source your shell to use the installed binaries"
 }
 
 main
