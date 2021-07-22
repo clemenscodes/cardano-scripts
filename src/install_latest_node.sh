@@ -1,6 +1,21 @@
 #!/usr/bin/env sh
 
-WORK_DIR="$HOME/cardano"
+WORK_DIR="${HOME}/cardano"
+CARDANO_NODE_DIR="${WORK_DIR}/cardano-node"
+CARDANO_DB_SYNC_DIR="${WORK_DIR}/cardano-db-sync"
+INSTALL_DIR="${HOME}/.local/bin"
+IPC_DIR="${WORK_DIR}/ipc"
+DATA_DIR="${WORK_DIR}/data/db"
+CONFIG_DIR="{WORK_DIR}/config"
+LIBSODIUM_DIR="${WORK_DIR}/libsodium"
+CLI_BINARY_PATH="${INSTALL_DIR}/cardano-cli"
+NODE_BINARY_PATH="${INSTALL_DIR}/cardano-node"
+GHC_VERSION="8.10.4"
+CABAL_VERSION="3.4.0.0"
+PLATFORM=$(uname -s)
+DISTRO=$(cat /etc/*ease | grep "DISTRIB_ID" | awk -F '=' '{print $2}')
+RELEASE_URL="https://api.github.com/repos/input-output-hk/cardano-node/releases/latest"
+LATEST_VERSION=$(curl -s "${RELEASE_URL}" | grep tag_name | awk -F ':' '{print $2}' | tr -d '"' | tr -d ',' | tr -d '[:space:]') 
 
 green() {
     printf "\\033[0;32m%s\\033[0m\\n" "$1"
@@ -81,27 +96,25 @@ adjust_rc() {
 get_root_privileges() {
     if [ "$(id -u)" -ne 0 ]; then
         white "This script requires root privileges"
-        sudo echo # > /dev/null
+        sudo echo > /dev/null
     fi
 }
 
 install_os_packages() {
-    plat=$(uname -s)
-    dist=$(cat /etc/*ease | grep "DISTRIB_ID" | awk -F '=' '{print $2}')
-    white "Detected platform $plat and distro $dist"
-    case "${plat}" in 
+        white "Detected platform ${PLATFORM} and distro ${DISTRO}"
+    case "${PLATFORM}" in 
         "linux" | "Linux")
-            case "${dist}" in 
+            case "${DISTRO}" in 
                 Fedora*|Hat*|CentOs*)
                     white "Updating and installing operating system dependencies"
-                    yum update -y # > /dev/null 2>&1 
-                    yum install curl git gcc gcc-c++ tmux gmp-devel make tar xz wget zlib-devel libtool autoconf -y #  > /dev/null 2>&1
+                    yum update -y > /dev/null 2>&1 
+                    yum install curl git gcc gcc-c++ tmux gmp-devel make tar xz wget zlib-devel libtool autoconf -y  > /dev/null 2>&1
                     yum install systemd-devel ncurses-devel ncurses-compat-libs -y > /dev/null 2>&1
                     ;;
                 Ubuntu*|Debian*)
                     white "Updating and installing operating system dependencies"
                     apt-get update -y > /dev/null 2>&1
-                    apt-get install curl automake build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev libsystemd-dev zlib1g-dev make g++ tmux git jq wget libncursesw5 libtool autoconf -y # > /dev/null;
+                    apt-get install curl automake build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev libsystemd-dev zlib1g-dev make g++ tmux git jq wget libncursesw5 libtool autoconf -y > /dev/null 2>&1;
                     ;;
                 *) red "Unsupported operating system :(" && exit 1
             esac ;;
@@ -139,14 +152,18 @@ check_nix() {
 }
 
 install_ghcup() {
-    white "Installing GHC"
-    (BOOTSTRAP_HASKELL_NONINTERACTIVE=1 \
-    BOOTSTRAP_HASKELL_NO_UPGRADE=1 \
-    BOOTSTRAP_HASKELL_CABAL_VERSION="3.4.0.0" \
-    BOOTSTRAP_HASKELL_GHC_VERSION="8.10.4" \
-    BOOTSTRAP_HASKELL_VERBOSE=1 \
-    BOOTSTRAP_HASKELL_ADJUST_BASHRC=true \
-    curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh )
+    white "Installing ghcup"
+    (
+    export BOOTSTRAP_HASKELL_NONINTERACTIVE=1
+    export BOOTSTRAP_HASKELL_NO_UPGRADE=1
+    export BOOTSTRAP_HASKELL_VERBOSE=1
+    export BOOTSTRAP_HASKELL_GHC_VERSION="${GHC_VERSION}"
+    export BOOTSTRAP_HASKELL_CABAL_VERSION="${CABAL_VERSION}"
+    export BOOTSTRAP_HASKELL_INSTALL_STACK=0 
+    export BOOTSTRAP_HASKELL_INSTALL_HLS=0 
+    export BOOTSTRAP_HASKELL_ADJUST_BASHRC=true
+    curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh
+    )
     . $HOME/.ghcup/env
 }
 
@@ -158,34 +175,32 @@ check_ghcup() {
 }
 
 install_ghc() {
-    white "Installing GHC 8.10.4"
-    ghcup install ghc --set 8.10.4
+    white "Installing GHC ${GHC_VERSION}"
+    ghcup install ghc --set "${GHC_VERSION}"
 }
 
 check_ghc() {
     white "Checking for GHC"
-    ghcversion="8.10.4"
     if ! type ghc > /dev/null 2>&1; then 
         install_ghc
-    elif [ "$(ghc --version | awk '{print $8}')" != $ghcversion ]; then
+    elif [ "$(ghc --version | awk '{print $8}')" != "${GHC_VERSION}" ]; then
         install_ghc
     fi 
 }
 
 check_cabal() {
-    cabalversion="3.4.0.0"
     white "Checking for Cabal"
     if ! type cabal > /dev/null 2>&1; then 
         red "Cabal is not installed properly"
         install_cabal  
-    elif [ "$(cabal --version | head -n1 | awk '{print $3}')" != $cabalversion ]; then
+    elif [ "$(cabal --version | head -n1 | awk '{print $3}')" != "${CABAL_VERSION}" ]; then
         install_cabal
     fi 
 }
 
 install_cabal() {
-   white "Installing cabal 3.4.0.0" 
-   ghcup install cabal --set 3.4.0.0
+   white "Installing cabal ${CABAL_VERSION}" 
+   ghcup install cabal --set "${CABAL_VERSION}"
 }
 
 check_dependencies() {
@@ -212,15 +227,15 @@ check_existing_workdir() {
 }
 
 download_libsodium() {
-    white "Downloading libsodium to ${WORK_DIR}"
+    white "Downloading libsodium to ${LIBSODIUM_DIR}"
     git clone https://github.com/input-output-hk/libsodium # > /dev/null 2>&1
     green "Downloaded libsodium"
 }
 
 install_libsodium() {
     download_libsodium
-    white "Installing libsodium to ${WORK_DIR}"
-    cd libsodium || exit
+    white "Installing libsodium to ${LIBSODIUM_DIR}"
+    cd "${LIBSODIUM_DIR}" || exit
     git checkout 66f017f1 > /dev/null 2>&1
     ./autogen.sh > /dev/null 2>&1
     ./configure > /dev/null 2>&1
@@ -231,7 +246,7 @@ install_libsodium() {
 
 check_for_libsodium() {
     white "Checking for existing libsodium"
-    if ! [ -d "${WORK_DIR}/libsodium" ]; then
+    if ! [ -d "${LIBSODIUM_DIR}" ]; then
         install_libsodium
     else
         green "Skipping installation of libsodium"
@@ -239,7 +254,7 @@ check_for_libsodium() {
 }
 
 download_cardano_node_repository() {
-    if ! [ -d "${WORK_DIR}/cardano-node" ]; then
+    if ! [ -d "${CARDANO_NODE_DIR}" ]; then
         white "Downloading cardano-node repository"
         git clone https://github.com/input-output-hk/cardano-node.git # > /dev/null 2>&1
         green "Downloaded cardano-node repository"
@@ -249,7 +264,7 @@ download_cardano_node_repository() {
 }
 
 download_cardano_db_sync_repository() {
-    if ! [ -d "${WORK_DIR}/cardano-db-sync" ]; then
+    if ! [ -d "${CARDANO_DB_SYNC_DIR}" ]; then
         white "Downloading cardano-db-sync repository"
         git clone https://github.com/input-output-hk/cardano-db-sync.git # > /dev/null 2>&1
         green "Downloaded cardano-db-sync repository"
@@ -259,20 +274,27 @@ download_cardano_db_sync_repository() {
 }
 
 create_folders() {
-    if ! [ -d "${WORK_DIR}/data/db" ]; then 
+    if ! [ -d "${DATA_DIR}" ]; then 
         white "Adding db folder to working directory"
-        mkdir -p "${WORK_DIR}"/data/db/mainnet
-        mkdir -p "${WORK_DIR}"/data/db/testnet
-        green "Created mainnet and testnet folders in ${WORK_DIR}/data/db/ folder"
+        mkdir -p "${DATA_DIR}/mainnet"
+        mkdir -p "${DATA_DIR}/testnet"
+        green "Created mainnet and testnet folders in ${DATA_DIR} folder"
     else 
-        green "data/db folder found, skip creating"
+        green "${DATA_DIR} found, skip creating"
     fi
-    if ! [ -d "${WORK_DIR}/ipc" ]; then 
+    if ! [ -d "${IPC_DIR}" ]; then 
         white "Adding ipc folder"
-        mkdir -p "${WORK_DIR}/ipc"
+        mkdir -p "${IPC_DIR}"
     else
         green "ipc folder found, skip creating"
     fi
+    if ! [ -d "${CONFIG_DIR}" ]; then 
+        white "Adding config folder"
+        mkdir -p "${CONFIG_DIR}"
+    else
+        green "config folder found, skip creating"
+    fi
+
 }
 
 download_cardano_repositories_to_workdir() {
@@ -283,21 +305,18 @@ download_cardano_repositories_to_workdir() {
 }
 
 checkout_latest_node_version() {
-    cd "${WORK_DIR}"/cardano-node || exit
-    white "Fetching latest node version"
-    latest_node_version=$(curl -s https://api.github.com/repos/input-output-hk/cardano-node/releases/latest | grep tag_name | awk -F ':' '{print $2}' | tr -d '"' | tr -d ',' > /dev/null 2>&1) 
-    white "$latest_node_version"
-    if [ -z "$latest_node_version" ]; then
+    cd "${CARDANO_NODE_DIR}" || exit
+    if [ -z "${LATEST_VERSION}" ]; then
         git checkout tags/1.27.0
     else
-        git checkout tags/"${latest_node_version}" # > /dev/null 2>&1
+        git checkout tags/"${LATEST_VERSION}" # > /dev/null 2>&1
     fi
-    green "Successfully checked out latest node version ${latest_node_version}"
+    green "Successfully checked out latest node version ${LATEST_VERSION}"
 }
 
 configure_build_options() {
-    white "Configuring the build options to build with GHC version 8.10.4"
-    cabal configure --with-compiler=ghc-8.10.4 # > /dev/null 2>&1
+    white "Configuring the build options to build with GHC version ${GHC_VERSION}"
+    cabal configure --with-compiler=ghc-"${GHC_VERSION}" # > /dev/null 2>&1
     green "Configured build options"
 }
 
@@ -320,28 +339,25 @@ build_latest_node_version() {
 }
 
 check_for_binary_install_directory() {
-    #TODO: Create variable for that, no hardcoding
-    if ! [ -d "$HOME"/.local/bin ]; then 
-        mkdir -p "$HOME"/.local/bin
+    if ! [ -d "${INSTALL_DIR}" ]; then 
+        mkdir -p "${INSTALL_DIR}" 
     fi
 }
 
 installing_binaries_to_local_bin() {
-    #TODO: Use variable here
-    white "Installing the binaries to $HOME/.local/bin"
+    white "Installing the binaries to ${INSTALL_DIR}"
     check_for_binary_install_directory
-    cp -p "$(./scripts/bin-path.sh cardano-node)" "$HOME"/.local/bin/
-    cp -p "$(./scripts/bin-path.sh cardano-cli)" "$HOME"/.local/bin/
+    cp -p "$(./scripts/bin-path.sh cardano-node)" "${INSTALL_DIR}"
+    cp -p "$(./scripts/bin-path.sh cardano-cli)" "${INSTALL_DIR}"
 }
 
 check_cardano_cli_installation() {
-    cliversion="1.28.0"
-    #TODO: Use variable here
     white "Checking cardano-cli installation"
-    if ! [ -f "$HOME/.local/bin/cardano-cli" ]; then 
+    if ! [ -f "${CLI_BINARY_PATH}" ]; then 
         red "Failed installing cardano-cli"
         exit 1
-    elif [ "$(cardano-cli --version | awk '{print $2}'|head -n1)" != $cliversion ]; then
+    elif [ "$(cardano-cli --version | awk '{print $2}' | head -n1)" = "${LATEST_VERSION}" ]; then
+        cardano-cli --version
         green "Successfully installed cardano-cli"
     else 
         red "Failed installing cardano-cli"
@@ -349,13 +365,12 @@ check_cardano_cli_installation() {
 }
 
 check_cardano_node_installation() {
-    nodeversion="1.28.0"
-    #TODO: Use variable here
     white "Checking cardano-node installation"
-    if ! [ -f "$HOME/.local/bin/cardano-node" ]; then 
+    if ! [ -f "${NODE_BINARY_PATH}" ]; then 
         red "Failed installing cardano-node"
         exit 1
-    elif [ "$(cardano-node --version | awk '{print $2}'|head -n1)" != $nodeversion ]; then
+    elif [ "$(cardano-node --version | awk '{print $2}'| head -n1)" = "${LATEST_VERSION}" ]; then
+        cardano-node --version
         green "Successfully installed cardano-node"
     else 
         red "Failed installing cardano-node"
@@ -369,7 +384,7 @@ check_installation() {
 }
 
 main() {
-    white "Installing the latest cardano-node and its components to $HOME/cardano"
+    white "Installing the latest cardano-node (${LATEST_VERSION}) and its components to ${WORK_DIR}"
     get_root_privileges
     find_shell
     ask_rc

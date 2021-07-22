@@ -3,4 +3,4 @@ services:
     cardano-node:
         build:
             context: ./
-            dockerfile: Cardano.Dockerfile
+            dockerfile: cardano-node.Dockerfile
