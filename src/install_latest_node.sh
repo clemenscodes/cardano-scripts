@@ -123,35 +123,6 @@ install_os_packages() {
     esac
 }
 
-install_nix() {
-    red "Nix is not installed, proceeding to install Nix"
-    if [ "$(id -u)" -eq 0 ]; then
-        echo "build-users-group =" > /etc/nix/nix.conf
-        mkdir -m 0755 /nix && chown root /nix
-    fi
-    curl -L https://nixos.org/nix/install > install-nix.sh
-    chmod +x install-nix.sh
-    yes | ./install-nix.sh 
-    rm ./install-nix.sh
-}
-
-set_nix_iohk_build_cache() {
-    green "Setting IOHK build cache"
-    mkdir -p /etc/nix
-    cat << EOF | tee /etc/nix/nix.conf
-    substituters = https://cache.nixos.org https://hydra.iohk.io
-    trusted-public-keys = iohk.cachix.org-1:DpRUyj7h7V830dp/i6Nti+NEO2/nhblbov/8MW7Rqoo= hydra.iohk.io:f/Ea+s+dFdN+3Y/G+FDgSq+a5NEWhJGzdjvKNGv0/EQ= cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=
-EOF
-}
-
-check_nix() {
-    white "Checking for nix"
-    if ! type nix > /dev/null 2>&1; then 
-        install_nix
-        set_nix_iohk_build_cache
-    fi
-}
-
 install_ghcup() {
     white "Installing ghcup"
     (
@@ -204,7 +175,6 @@ install_cabal() {
 }
 
 check_dependencies() {
-    check_nix
     check_ghcup
     check_ghc
     check_cabal
