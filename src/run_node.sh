@@ -54,24 +54,22 @@ get_mainnet_config_files() {
     green "Fetching cardano blockchain mainnet network configuration files"
     mkdir -p "$workdir"/config/mainnet 
     cd "$workdir"/config/mainnet || exit
-    (spinner & wget https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/mainnet-config.json > /dev/null 2>&1 &&
+    wget https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/mainnet-config.json > /dev/null 2>&1 &&
     wget https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/mainnet-byron-genesis.json > /dev/null 2>&1 &&
     wget https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/mainnet-shelley-genesis.json > /dev/null 2>&1 &&
     wget https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/mainnet-topology.json > /dev/null 2>&1 && 
-    wget https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/mainnet-alonzo-genesis.json > /dev/null 2>&1)
-    touch stopspinning
+    wget https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/mainnet-alonzo-genesis.json > /dev/null 2>&1
 }
 
 get_testnet_config_files() {
     green "Fetching cardano blockchain testnet network configuration files"
     mkdir -p "$workdir"/config/testnet
     cd "$workdir"/config/testnet|| exit
-    (spinner & wget https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/testnet-config.json > /dev/null 2>&1 &&
+    wget https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/testnet-config.json > /dev/null 2>&1 &&
     wget https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/testnet-byron-genesis.json > /dev/null 2>&1 &&
     wget https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/testnet-shelley-genesis.json > /dev/null 2>&1 &&
     wget https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/testnet-topology.json > /dev/null 2>&1 && 
-    wget https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/testnet-alonzo-genesis.json > /dev/null 2>&1)
-    touch stopspinning
+    wget https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/testnet-alonzo-genesis.json > /dev/null 2>&1
 }
 
 check_for_config_files() {
