@@ -8,8 +8,8 @@ IPC_DIR="${WORK_DIR}/ipc"
 DATA_DIR="${WORK_DIR}/data/db"
 CONFIG_DIR="{WORK_DIR}/config"
 LIBSODIUM_DIR="${WORK_DIR}/libsodium"
-CLI_BINARY_PATH="${INSTALL_DIR}/cardano-cli"
-NODE_BINARY_PATH="${INSTALL_DIR}/cardano-node"
+CLI_BINARY="${INSTALL_DIR}/cardano-cli"
+NODE_BINARY="${INSTALL_DIR}/cardano-node"
 GHC_VERSION="8.10.4"
 CABAL_VERSION="3.4.0.0"
 PLATFORM=$(uname -s)
@@ -353,7 +353,7 @@ installing_binaries_to_local_bin() {
 
 check_cardano_cli_installation() {
     white "Checking cardano-cli installation"
-    if ! [ -f "${CLI_BINARY_PATH}" ]; then 
+    if ! [ -f "${CLI_BINARY}" ]; then 
         red "Failed installing cardano-cli"
         exit 1
     elif [ "$(cardano-cli --version | awk '{print $2}' | head -n1)" = "${LATEST_VERSION}" ]; then
@@ -366,7 +366,7 @@ check_cardano_cli_installation() {
 
 check_cardano_node_installation() {
     white "Checking cardano-node installation"
-    if ! [ -f "${NODE_BINARY_PATH}" ]; then 
+    if ! [ -f "${NODE_BINARY}" ]; then 
         red "Failed installing cardano-node"
         exit 1
     elif [ "$(cardano-node --version | awk '{print $2}'| head -n1)" = "${LATEST_VERSION}" ]; then
@@ -384,6 +384,7 @@ check_installation() {
 }
 
 main() {
+    [ -z "${LATEST_VERSION}" ] && red "Couldn't fetch latest node version, exiting." && exit 1
     white "Installing the latest cardano-node (${LATEST_VERSION}) and its components to ${WORK_DIR}"
     get_root_privileges
     find_shell
