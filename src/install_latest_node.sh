@@ -307,7 +307,7 @@ download_cardano_repositories_to_workdir() {
     cd "${WORK_DIR}" || exit 
     download_cardano_node_repository
     download_cardano_db_sync_repository
-    create_db_folder
+    create_folders
 }
 
 checkout_latest_node_version() {
