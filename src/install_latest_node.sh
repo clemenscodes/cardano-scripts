@@ -286,13 +286,19 @@ download_cardano_db_sync_repository() {
     fi 
 }
 
-create_db_folder() {
-    if ! [ -d "${WORK_DIR}/db" ]; then 
+create_folders() {
+    if ! [ -d "${WORK_DIR}/data/db" ]; then 
         white "Adding db folder to working directory"
-        mkdir -p "${WORK_DIR}"/db
-        green "Created db folder"
+        mkdir -p "${WORK_DIR}"/data/db
+        green "Created data/db folders"
     else 
-        green "db folder found, skip creating"
+        green "data/db folder found, skip creating"
+    fi
+    if ! [ -d "${WORK_DIR}/ipc" ]; then 
+        white "Adding ipc folder"
+        mkdir -p "$WORK_DIR/ipc"
+    else
+        green "ipc folder found, skip creating"
     fi
 }
 
