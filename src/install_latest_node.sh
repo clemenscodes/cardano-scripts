@@ -3,6 +3,7 @@
 WORK_DIR="${HOME}/cardano"
 CARDANO_NODE_DIR="${WORK_DIR}/cardano-node"
 CARDANO_DB_SYNC_DIR="${WORK_DIR}/cardano-db-sync"
+PROJECT_FILE="${CARDANO_NODE_DIR}/cabal.project.local"
 INSTALL_DIR="${HOME}/.local/bin"
 IPC_DIR="${WORK_DIR}/ipc"
 DATA_DIR="${WORK_DIR}/data/db"
@@ -164,7 +165,6 @@ install_ghcup() {
     export BOOTSTRAP_HASKELL_ADJUST_BASHRC=true
     curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh
     )
-    . $HOME/.ghcup/env
 }
 
 check_ghcup() {
@@ -316,16 +316,26 @@ checkout_latest_node_version() {
 
 configure_build_options() {
     white "Configuring the build options to build with GHC version ${GHC_VERSION}"
+    [ -f "${PROJECT_FILE}" ] && rm "${PROJECT_FILE}"
     cabal configure --with-compiler=ghc-"${GHC_VERSION}" # > /dev/null 2>&1
     green "Configured build options"
 }
 
 update_local_project_file_to_use_libsodium_compiler() {
-    #TODO: Check for existing project file with this content
     white "Update the local project file to use libsodium"
-    echo "package cardano-crypto-praos" >>  cabal.project.local
-    echo "  flags: -external-libsodium-vrf" >>  cabal.project.local
+    echo "package cardano-crypto-praos" >> "${PROJECT_FILE}"
+    echo "  flags: -external-libsodium-vrf" >> "${PROJECT_FILE}"
     green "Updated local project file"
+}
+
+check_local_project_file() {
+    if ! [ -f "${PROJECT_FILE}" ]; then
+        update_local_project_file_to_use_libsodium_compiler
+    elif grep -q "package cardano-crypto-praos" "${PROJECT_FILE}" && grep -q "package cardano-crypto-praos" "${PROJECT_FILE}"; then
+        white "Skip adjustment of ${PROJECT_FILE}"
+    else 
+        update_local_project_file_to_use_libsodium_compiler
+    fi
 }
 
 build_latest_node_version() {
@@ -333,7 +343,7 @@ build_latest_node_version() {
     download_cardano_repositories_to_workdir
     checkout_latest_node_version
     configure_build_options
-    update_local_project_file_to_use_libsodium_compiler
+    check_local_project_file
     green "Building and installing the node to produce executables binaries, this might take a while..."
     cabal build all # > /dev/null 2>&1
 }
