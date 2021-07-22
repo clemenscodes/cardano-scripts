@@ -106,14 +106,14 @@ install_os_packages() {
             case "${DISTRO}" in 
                 Fedora*|Hat*|CentOs*)
                     white "Updating and installing operating system dependencies"
-                    yum update -y > /dev/null 2>&1 
-                    yum install curl git gcc gcc-c++ tmux gmp-devel make tar xz wget zlib-devel libtool autoconf -y  > /dev/null 2>&1
-                    yum install systemd-devel ncurses-devel ncurses-compat-libs -y > /dev/null 2>&1
+                    sudo yum update -y # > /dev/null 2>&1 
+                    sudo yum install curl git gcc gcc-c++ tmux gmp-devel make tar xz wget zlib-devel libtool autoconf -y  # > /dev/null 2>&1
+                    yum install systemd-devel ncurses-devel ncurses-compat-libs -y # > /dev/null 2>&1
                     ;;
                 Ubuntu*|Debian*)
                     white "Updating and installing operating system dependencies"
-                    apt-get update -y > /dev/null 2>&1
-                    apt-get install curl automake build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev libsystemd-dev zlib1g-dev make g++ tmux git jq wget libncursesw5 libtool autoconf -y > /dev/null 2>&1;
+                    sudo apt-get update -y # > /dev/null 2>&1
+                    sudo apt-get install curl automake build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev libsystemd-dev zlib1g-dev make g++ tmux git jq wget libncursesw5 libtool autoconf -y # > /dev/null 2>&1;
                     ;;
                 *) red "Unsupported operating system :(" && exit 1
             esac ;;
@@ -140,6 +140,7 @@ check_ghcup() {
     if ! type ghcup > /dev/null 2>&1; then 
         install_ghcup
     fi
+    . "${HOME}/.ghcup/env"
     white "$(ghcup --version)"
 }
 
@@ -156,11 +157,12 @@ check_ghc() {
         install_ghc
     elif [ "$(ghc --version | awk '{print $8}')" != "${GHC_VERSION}" ]; then
         installed_ghc=$(ghc --version | awk '{print $8}')
-        white "Currently GHC ${installed_ghc} is installed, removing it and installing correct version"
+        white "Currently GHC ${installed_ghc} is installed, removing it and installing desired version ${GHC_VERSION}"
         ghcup rm ghc "${installed_ghc}"
         install_ghc
     fi 
     white "$(ghc --version)"
+    . "${HOME}/.ghcup/env"
 }
 
 check_cabal() {
@@ -169,9 +171,12 @@ check_cabal() {
         red "Cabal is not installed properly"
         install_cabal  
     elif [ "$(cabal --version | head -n1 | awk '{print $3}')" != "${CABAL_VERSION}" ]; then
-        cabal --version | head -n1 | awk '{print $3}'
+        installed_cabal=$(cabal --version | head -n1 | awk '{print $3}')
+        white "Currently cabal version ${installed_cabal} is installed, removing it and installing desired version ${CABAL_VERSION}"
+        ghcup rm cabal "${installed_cabal}"
         install_cabal
     fi 
+    . "${HOME}/.ghcup/env"
     white "$(cabal --version)"
     white "Updating cabal"
     cabal update
@@ -180,7 +185,6 @@ check_cabal() {
 install_cabal() {
     white "Installing cabal ${CABAL_VERSION}" 
     ghcup install cabal --set "${CABAL_VERSION}"
-    . "${HOME}/.ghcup/env"
     check_cabal
    }
 
@@ -216,11 +220,11 @@ install_libsodium() {
     download_libsodium
     white "Installing libsodium to ${LIBSODIUM_DIR}"
     cd "${LIBSODIUM_DIR}" || exit
-    git checkout 66f017f1 > /dev/null 2>&1
-    ./autogen.sh > /dev/null 2>&1
-    ./configure > /dev/null 2>&1
-    make > /dev/null 2>&1
-    make install > /dev/null 2>&1 
+    git checkout 66f017f1 # > /dev/null 2>&1
+    ./autogen.sh # > /dev/null 2>&1
+    ./configure # > /dev/null 2>&1
+    make # > /dev/null 2>&1
+    sudo make install # > /dev/null 2>&1 
     green "Installed libsodium"
 }
 
@@ -297,6 +301,8 @@ checkout_latest_node_version() {
 configure_build_options() {
     white "Configuring the build options to build with GHC version ${GHC_VERSION}"
     [ -f "${PROJECT_FILE}" ] && rm "${PROJECT_FILE}"
+    check_cabal
+    check_ghc
     cabal configure --with-compiler=ghc-"${GHC_VERSION}" # > /dev/null 2>&1
     green "Configured build options"
 }
