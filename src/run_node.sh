@@ -72,8 +72,6 @@ cleanup () {
 # This tries to catch any exit, to reset cursor
 trap cleanup INT QUIT TERM
 
-
-
 install_cardano_node() {
     ./install_latest_node.sh
 }
