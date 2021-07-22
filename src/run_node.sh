@@ -54,10 +54,13 @@ get_testnet_config_files() {
 
 check_for_config_files() {
     echo -e "${GREEN}Checking for config files${SET}"
-    if ! [ -d "$workdir"/config ]
-        then 
+    if ! [ -d "$workdir"/config ]; then
         echo -e "${RED}No config files found${SET}"
         get_mainnet_config_files
+        get_testnet_config_files
+    elif ! [ -d "$workdir/config/mainnet" ]; then
+        get_mainnet_config_files
+    elif ! [ -d "$workdir/config/testnet" ]; then
         get_testnet_config_files
    fi
 }
