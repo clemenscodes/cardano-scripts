@@ -80,6 +80,7 @@ check_for_path_variables() {
         [ -z "${bin}" ] && echo 'export PATH="$HOME/.local/bin/:$PATH"' >> "${SHELL_PROFILE_FILE}"
         [ -z "${socket}" ] && echo 'export CARDANO_NODE_SOCKET_PATH="$HOME/cardano/ipc/node.socket"' >> "${SHELL_PROFILE_FILE}"
     else
+        white "No shell found, exporting environment variables to current shell session only"
         export LD_LIBRARY_PATH="/usr/local/lib:$LD_LIBRARY_PATH"
         export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH"
         export PATH="$HOME/.local/bin/:$PATH"
@@ -92,13 +93,6 @@ adjust_rc() {
 		1) check_for_path_variables ;;
 		*) ;;
 	esac
-}
-
-get_root_privileges() {
-    if [ "$(id -u)" -ne 0 ]; then
-        white "This script requires root privileges"
-        sudo echo > /dev/null
-    fi
 }
 
 install_os_packages() {
@@ -121,35 +115,6 @@ install_os_packages() {
             esac ;;
         *) red "Unsupported operating system :(" && exit 1 
     esac
-}
-
-install_nix() {
-    red "Nix is not installed, proceeding to install Nix"
-    if [ "$(id -u)" -eq 0 ]; then
-        echo "build-users-group =" > /etc/nix/nix.conf
-        mkdir -m 0755 /nix && chown root /nix
-    fi
-    curl -L https://nixos.org/nix/install > install-nix.sh
-    chmod +x install-nix.sh
-    yes | ./install-nix.sh 
-    rm ./install-nix.sh
-}
-
-set_nix_iohk_build_cache() {
-    green "Setting IOHK build cache"
-    mkdir -p /etc/nix
-    cat << EOF | tee /etc/nix/nix.conf
-    substituters = https://cache.nixos.org https://hydra.iohk.io
-    trusted-public-keys = iohk.cachix.org-1:DpRUyj7h7V830dp/i6Nti+NEO2/nhblbov/8MW7Rqoo= hydra.iohk.io:f/Ea+s+dFdN+3Y/G+FDgSq+a5NEWhJGzdjvKNGv0/EQ= cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY=
-EOF
-}
-
-check_nix() {
-    white "Checking for nix"
-    if ! type nix > /dev/null 2>&1; then 
-        install_nix
-        set_nix_iohk_build_cache
-    fi
 }
 
 install_ghcup() {
@@ -204,7 +169,6 @@ install_cabal() {
 }
 
 check_dependencies() {
-    check_nix
     check_ghcup
     check_ghc
     check_cabal
@@ -366,7 +330,7 @@ check_cardano_cli_installation() {
     if ! [ -f "${CLI_BINARY}" ]; then 
         red "Failed installing cardano-cli"
         exit 1
-    elif [ "$(cardano-cli --version | awk '{print $2}' | head -n1)" = "${LATEST_VERSION}" ]; then
+    elif [ "$("${CLI_BINARY}" --version | awk '{print $2}' | head -n1)" = "${LATEST_VERSION}" ]; then
         cardano-cli --version
         green "Successfully installed cardano-cli"
     else 
@@ -379,7 +343,7 @@ check_cardano_node_installation() {
     if ! [ -f "${NODE_BINARY}" ]; then 
         red "Failed installing cardano-node"
         exit 1
-    elif [ "$(cardano-node --version | awk '{print $2}'| head -n1)" = "${LATEST_VERSION}" ]; then
+    elif [ "$("{NODE_BINARY}" --version | awk '{print $2}'| head -n1)" = "${LATEST_VERSION}" ]; then
         cardano-node --version
         green "Successfully installed cardano-node"
     else 
