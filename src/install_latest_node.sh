@@ -33,25 +33,33 @@ white() {
 find_shell() {
 	case $SHELL in
 		*/zsh)
+            white "Found zsh"
 			SHELL_PROFILE_FILE="$HOME/.zshrc"
             MY_SHELL="zsh" ;;
 		*/bash)
+            white "Found bash"
 			SHELL_PROFILE_FILE="$HOME/.bashrc"
             MY_SHELL="bash" ;;
 		*/sh) 
+            white "Found sh"
 			if [ -n "${BASH}" ]; then
+                white "Found bash"
 				SHELL_PROFILE_FILE="$HOME/.bashrc"
                 MY_SHELL="bash"
 			elif [ -n "${ZSH_VERSION}" ]; then
+                white "Found zsh"
 				SHELL_PROFILE_FILE="$HOME/.zshrc"
                 MY_SHELL="zsh"
 			fi ;;
-		*) ;;
+		*) 
+            red "No shell found, exporting environment variables to current shell session only"
+            ;;
 	esac
 }
 
 ask_rc() {
 	while true; do
+        [ -z "${MY_SHELL}" ] && return 0
         white "Detected ${MY_SHELL}"
         white "Do you want to automatically add the required PATH variables to \"${SHELL_PROFILE_FILE}\"?"
         white "[y] Yes  [n] No  [?] Help"
@@ -69,34 +77,29 @@ ask_rc() {
 	unset rc_answer
 }
 
-check_for_path_variables() {
-    if [ -f "$SHELL_PROFILE_FILE" ]; then
-        ld=$(grep LD_LIBRARY_PATH "${SHELL_PROFILE_FILE}")
-        pkg=$(grep PKG_CONFIG_PATH "${SHELL_PROFILE_FILE}")
-        bin=$(grep .local/bin/ "${SHELL_PROFILE_FILE}")
-        socket=$(grep CARDANO_NODE_SOCKET_PATH "${SHELL_PROFILE_FILE}")
-        [ -z "${ld}" ] && echo 'export LD_LIBRARY_PATH="/usr/local/lib:$LD_LIBRARY_PATH"' >> "${SHELL_PROFILE_FILE}"
-        [ -z "${pkg}" ] && echo 'export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH"' >> "${SHELL_PROFILE_FILE}"
-        [ -z "${bin}" ] && echo 'export PATH="$HOME/.local/bin/:$PATH"' >> "${SHELL_PROFILE_FILE}"
-        [ -z "${socket}" ] && echo 'export CARDANO_NODE_SOCKET_PATH="$HOME/cardano/ipc/node.socket"' >> "${SHELL_PROFILE_FILE}"
-    else
-        white "No shell found, exporting environment variables to current shell session only"
-        export LD_LIBRARY_PATH="/usr/local/lib:$LD_LIBRARY_PATH"
-        export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH"
-        export PATH="$HOME/.local/bin/:$PATH"
-        export CARDANO_NODE_SOCKET_PATH="$HOME/cardano/ipc/node.socket"
-    fi
-}
-
 adjust_rc() {
     case $1 in
-		1) check_for_path_variables ;;
-		*) ;;
+		1) 
+            ld=$(grep LD_LIBRARY_PATH "${SHELL_PROFILE_FILE}")
+            pkg=$(grep PKG_CONFIG_PATH "${SHELL_PROFILE_FILE}")
+            bin=$(grep .local/bin/ "${SHELL_PROFILE_FILE}")
+            socket=$(grep CARDANO_NODE_SOCKET_PATH "${SHELL_PROFILE_FILE}")
+            [ -z "${ld}" ] && echo 'export LD_LIBRARY_PATH="/usr/local/lib:$LD_LIBRARY_PATH"' >> "${SHELL_PROFILE_FILE}"
+            [ -z "${pkg}" ] && echo 'export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH"' >> "${SHELL_PROFILE_FILE}"
+            [ -z "${bin}" ] && echo 'export PATH="$HOME/.local/bin/:$PATH"' >> "${SHELL_PROFILE_FILE}"
+            [ -z "${socket}" ] && echo 'export CARDANO_NODE_SOCKET_PATH="$HOME/cardano/ipc/node.socket"' >> "${SHELL_PROFILE_FILE}"
+            ;;
+		*) 
+            export LD_LIBRARY_PATH="/usr/local/lib:$LD_LIBRARY_PATH"
+            export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH"
+            export PATH="$HOME/.local/bin/:$PATH"
+            export CARDANO_NODE_SOCKET_PATH="$HOME/cardano/ipc/node.socket"
+            ;;
 	esac
 }
 
 install_os_packages() {
-        white "Detected platform ${PLATFORM} and distro ${DISTRO}"
+    white "Detected platform ${PLATFORM} and distro ${DISTRO}"
     case "${PLATFORM}" in 
         "linux" | "Linux")
             case "${DISTRO}" in 
@@ -130,6 +133,7 @@ install_ghcup() {
     export BOOTSTRAP_HASKELL_ADJUST_BASHRC=true
     curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh
     )
+    ghcup --version
 }
 
 check_ghcup() {
@@ -142,11 +146,12 @@ check_ghcup() {
 install_ghc() {
     white "Installing GHC ${GHC_VERSION}"
     ghcup install ghc --set "${GHC_VERSION}"
-    ghc --version
-    while [ "$(ghc --version | awk '{print $8}')" != "${GHC_VERSION}" ]; do
+    ghc --version | awk '{print $8}'
+    if [ "$(ghc --version | awk '{print $8}')" != "${GHC_VERSION}" ]; then
         white "GHC not set correctly, trying again"
         ghcup install ghc --set "${GHC_VERSION}"
-    done
+        ghc --version | awk '{print $8}'
+    fi 
 }
 
 check_ghc() {
@@ -154,6 +159,7 @@ check_ghc() {
     if ! type ghc > /dev/null 2>&1; then 
         install_ghc
     elif [ "$(ghc --version | awk '{print $8}')" != "${GHC_VERSION}" ]; then
+        ghc --version | awk '{print $8}'
         install_ghc
     fi 
 }
@@ -164,6 +170,7 @@ check_cabal() {
         red "Cabal is not installed properly"
         install_cabal  
     elif [ "$(cabal --version | head -n1 | awk '{print $3}')" != "${CABAL_VERSION}" ]; then
+        cabal --version | head -n1 | awk '{print $3}'
         install_cabal
     fi 
 }
@@ -172,6 +179,7 @@ install_cabal() {
     white "Installing cabal ${CABAL_VERSION}" 
     ghcup install cabal --set "${CABAL_VERSION}"
     cabal --version
+    white "Updating cabal"
     cabal update
 }
 
