@@ -90,6 +90,7 @@ adjust_rc() {
             [ -z "${socket}" ] && echo 'export CARDANO_NODE_SOCKET_PATH="$HOME/cardano/ipc/node.socket"' >> "${SHELL_PROFILE_FILE}"
             ;;
 		*) 
+            white "Exporting variables"
             export LD_LIBRARY_PATH="/usr/local/lib:$LD_LIBRARY_PATH"
             export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH"
             export PATH="$HOME/.local/bin/:$PATH"
@@ -139,6 +140,7 @@ check_ghcup() {
     if ! type ghcup > /dev/null 2>&1; then 
         install_ghcup
     fi
+    white "$(ghcup --version)"
 }
 
 install_ghc() {
@@ -158,6 +160,7 @@ check_ghc() {
         ghcup rm ghc "${installed_ghc}"
         install_ghc
     fi 
+    white "$(ghc --version)"
 }
 
 check_cabal() {
@@ -169,15 +172,17 @@ check_cabal() {
         cabal --version | head -n1 | awk '{print $3}'
         install_cabal
     fi 
+    white "$(cabal --version)"
+    white "Updating cabal"
+    cabal update
 }
 
 install_cabal() {
     white "Installing cabal ${CABAL_VERSION}" 
     ghcup install cabal --set "${CABAL_VERSION}"
-    cabal --version
-    white "Updating cabal"
-    cabal update
-}
+    . "${HOME}/.ghcup/env"
+    check_cabal
+   }
 
 check_dependencies() {
     check_ghcup
