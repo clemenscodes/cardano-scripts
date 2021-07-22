@@ -146,12 +146,7 @@ check_ghcup() {
 install_ghc() {
     white "Installing GHC ${GHC_VERSION}"
     ghcup install ghc --set "${GHC_VERSION}"
-    ghc --version | awk '{print $8}'
-    if [ "$(ghc --version | awk '{print $8}')" != "${GHC_VERSION}" ]; then
-        white "GHC not set correctly, trying again"
-        ghcup install ghc --set "${GHC_VERSION}"
-        ghc --version | awk '{print $8}'
-    fi 
+    check_ghc
 }
 
 check_ghc() {
@@ -159,7 +154,9 @@ check_ghc() {
     if ! type ghc > /dev/null 2>&1; then 
         install_ghc
     elif [ "$(ghc --version | awk '{print $8}')" != "${GHC_VERSION}" ]; then
-        ghc --version | awk '{print $8}'
+        installed_ghc=$(ghc --version | awk '{print $8}')
+        white "Currently GHC ${installed_ghc} is installed, removing it and installing correct version"
+        ghcup rm ghc "${installed_ghc}"
         install_ghc
     fi 
 }
