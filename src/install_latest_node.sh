@@ -80,6 +80,7 @@ check_for_path_variables() {
         [ -z "${bin}" ] && echo 'export PATH="$HOME/.local/bin/:$PATH"' >> "${SHELL_PROFILE_FILE}"
         [ -z "${socket}" ] && echo 'export CARDANO_NODE_SOCKET_PATH="$HOME/cardano/ipc/node.socket"' >> "${SHELL_PROFILE_FILE}"
     else
+        white "No shell found, exporting environment variables to current shell session only"
         export LD_LIBRARY_PATH="/usr/local/lib:$LD_LIBRARY_PATH"
         export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH"
         export PATH="$HOME/.local/bin/:$PATH"
@@ -92,13 +93,6 @@ adjust_rc() {
 		1) check_for_path_variables ;;
 		*) ;;
 	esac
-}
-
-get_root_privileges() {
-    if [ "$(id -u)" -ne 0 ]; then
-        white "This script requires root privileges"
-        sudo echo > /dev/null
-    fi
 }
 
 install_os_packages() {
@@ -336,7 +330,7 @@ check_cardano_cli_installation() {
     if ! [ -f "${CLI_BINARY}" ]; then 
         red "Failed installing cardano-cli"
         exit 1
-    elif [ "$(cardano-cli --version | awk '{print $2}' | head -n1)" = "${LATEST_VERSION}" ]; then
+    elif [ "$("${CLI_BINARY}" --version | awk '{print $2}' | head -n1)" = "${LATEST_VERSION}" ]; then
         cardano-cli --version
         green "Successfully installed cardano-cli"
     else 
@@ -349,7 +343,7 @@ check_cardano_node_installation() {
     if ! [ -f "${NODE_BINARY}" ]; then 
         red "Failed installing cardano-node"
         exit 1
-    elif [ "$(cardano-node --version | awk '{print $2}'| head -n1)" = "${LATEST_VERSION}" ]; then
+    elif [ "$("{NODE_BINARY}" --version | awk '{print $2}'| head -n1)" = "${LATEST_VERSION}" ]; then
         cardano-node --version
         green "Successfully installed cardano-node"
     else 
