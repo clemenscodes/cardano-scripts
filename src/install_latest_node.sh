@@ -135,7 +135,7 @@ install_ghcup() {
 check_ghcup() {
     white "Checking for ghcup"
     if ! type ghcup > /dev/null 2>&1; then 
-        install_ghcu
+        install_ghcup
     fi
 }
 
@@ -143,6 +143,10 @@ install_ghc() {
     white "Installing GHC ${GHC_VERSION}"
     ghcup install ghc --set "${GHC_VERSION}"
     ghc --version
+    while [ "$(ghc --version | awk '{print $8}')" != "${GHC_VERSION}" ]; do
+        white "GHC not set correctly, trying again"
+        ghcup install ghc --set "${GHC_VERSION}"
+    done
 }
 
 check_ghc() {
@@ -368,6 +372,7 @@ main() {
     ask_rc_answer=$?
     adjust_rc $ask_rc_answer
     install_os_packages
+    check_dependencies
     check_dependencies
     check_existing_workdir
     build_latest_node_version
