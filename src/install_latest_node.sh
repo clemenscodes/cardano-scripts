@@ -155,7 +155,7 @@ install_ghcup() {
     export BOOTSTRAP_HASKELL_GHC_VERSION="${GHC_VERSION}" &&
     export BOOTSTRAP_HASKELL_CABAL_VERSION="${CABAL_VERSION}" &&
     export BOOTSTRAP_HASKELL_ADJUST_BASHRC=true &&
-    curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh; } || die "Failed installing ghcup")
+    curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh >/dev/null 2>&1; } || die "Failed installing ghcup")
 }
 
 check_ghcup() {
@@ -195,7 +195,7 @@ check_cabal() {
         ghcup rm cabal "${installed_cabal}"
         install_cabal
     else 
-        white "$(cabal --version)"
+        white "$(cabal --version | head -n1)"
     fi 
 }
 
@@ -217,14 +217,13 @@ create_workdir() {
     white "Creating working directory in ${WORK_DIR}" 
     mkdir -p "${WORK_DIR}" || die "Failed creating directory ${WORK_DIR}"
     cd "${WORK_DIR}" || die "Failed changing directory to ${WORK_DIR}"
-    { check_data_dir && check_ipc_dir && check_config_dir; } || die "Failed setting up ${WORK_DIR}" 
     green "Created working directory"
 }
 
 check_data_dir() {
     white "Checking data directory in working directory"
     if ! [ -d "${DATA_DIR}" ]; then 
-        white "Adding db folder to working directory"
+        white "Adding data folder to working directory"
         { mkdir -p "${DATA_DIR}/mainnet" && mkdir -p "${DATA_DIR}/testnet"; } || die "Failed creating directories in ${DATA_DIR}"
         green "Created mainnet and testnet folders in ${DATA_DIR} folder"
     else 
@@ -308,8 +307,8 @@ checkout_latest_node_version() {
 configure_build_options() {
     white "Configuring the build options to build with GHC version ${GHC_VERSION}"
     [ -f "${PROJECT_FILE}" ] && rm "${PROJECT_FILE}"
-    white "Checking Cabal and GHC again to really make sure they are installed"
-    { check_cabal && check_ghc; } || die "Failed making sure the build dependencies are installed"
+    { check_cabal >/dev/null 2>&1 && check_ghc >/dev/null 2>&1; } || die "Failed making sure the build dependencies are installed"
+    white "Updating cabal"
     { cabal update && cabal configure --with-compiler=ghc-"${GHC_VERSION}"; } || die "Failed configuring the build options"
     green "Configured build options"
 }
