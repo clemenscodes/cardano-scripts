@@ -167,6 +167,7 @@ install_ghc() {
     white "Installing GHC ${GHC_VERSION}"
     ! type ghcup >/dev/null 2>&1 && install_ghcup; 
     { ghcup install ghc --set "${GHC_VERSION}" && check_ghc; } || die "Failed installing GHC"
+    export PATH="$HOME/.cabal/bin:$HOME/.ghcup/bin:$PATH"
     green "Installed GHC ${GHC_VERSION}"
 }
 
