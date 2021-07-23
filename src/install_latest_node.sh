@@ -1,6 +1,6 @@
-#!/usr/bin/env sh
+#!/bin/sh
 
-WORK_DIR="${HOME}/cardano"
+(WORK_DIR="${HOME}/.cardano"
 CARDANO_NODE_DIR="${WORK_DIR}/cardano-node"
 CARDANO_DB_SYNC_DIR="${WORK_DIR}/cardano-db-sync"
 PROJECT_FILE="${CARDANO_NODE_DIR}/cabal.project.local"
@@ -30,9 +30,22 @@ white() {
     printf "\033[1;37m%s\\033[0m\\n" "$1"
 }
 
+check_version() {
+    if type cardano-node > /dev/null 2>&1; then 
+        installed_cardano_node_version=$(cardano-node  --version | awk '{print $2}'| head -n1)
+        if [ "${installed_cardano_node_version}" = "${LATEST_VERSION}" ]; then 
+            green "Already installed latest cardano-node (v${installed_cardano_node_version})"
+            exit 0
+        else 
+            white "Updating cardano-node version ${installed_cardano_node_version} to version ${LATEST_VERSION}"
+            install_latest_node
+       fi
+    fi 
+}
+
 find_shell() {
-	case $SHELL in
-		*/zsh)
+    case $SHELL in
+        */zsh)
             white "Found zsh"
 			SHELL_PROFILE_FILE="$HOME/.zshrc"
             MY_SHELL="zsh" ;;
@@ -51,9 +64,7 @@ find_shell() {
 				SHELL_PROFILE_FILE="$HOME/.zshrc"
                 MY_SHELL="zsh"
 			fi ;;
-		*) 
-            red "No shell found, exporting environment variables to current shell session only"
-            ;;
+		*) red "No shell found, exporting environment variables to current shell session only" ;;
 	esac
 }
 
@@ -62,11 +73,11 @@ ask_rc() {
         [ -z "${MY_SHELL}" ] && return 0
         white "Detected ${MY_SHELL}"
         white "Do you want to automatically add the required PATH variables to \"${SHELL_PROFILE_FILE}\"?"
-        white "[y] Yes  [n] No  [?] Help"
+        white "[y] Yes (default) [n] No  [?] Help"
         read -r rc_answer
 		case $rc_answer in
 			[Yy]* | "") green "Proceeding to add PATH variables for ${MY_SHELL}" && return 1;;
-			[Nn]*) red "Skipped, installer might fail, but you know best" && return 0;;
+			[Nn]*) red "Skipped adding PATH variables" && return 0;;
 			*)
 				white "Possible choices are:"
 				green "Y - Yes (default)"
@@ -186,9 +197,10 @@ install_cabal() {
     white "Installing cabal ${CABAL_VERSION}" 
     ghcup install cabal --set "${CABAL_VERSION}"
     check_cabal
-   }
+}
 
 check_dependencies() {
+    white "Checking dependencies"
     check_ghcup
     check_ghc
     check_cabal
@@ -199,15 +211,53 @@ create_workdir() {
     mkdir -p "${WORK_DIR}" 
     cd "${WORK_DIR}" || exit 
     green "Created working directory"
+    check_data_dir
+    check_ipc_dir
+    check_config_dir
 }
 
-check_existing_workdir() {
+check_data_dir() {
+    white "Checking data directory in working directory"
+    if ! [ -d "${DATA_DIR}" ]; then 
+        white "Adding db folder to working directory"
+        mkdir -p "${DATA_DIR}/mainnet"
+        mkdir -p "${DATA_DIR}/testnet"
+        green "Created mainnet and testnet folders in ${DATA_DIR} folder"
+    else 
+        green "${DATA_DIR} found, skip creating"
+    fi
+}
+
+check_ipc_dir() {
+    white "Checking ipc directory in working directory"
+    if ! [ -d "${IPC_DIR}" ]; then 
+        white "Adding ipc folder"
+        mkdir -p "${IPC_DIR}"
+    else
+        green "ipc folder found, skip creating"
+    fi
+}
+
+check_config_dir() {
+    white "Checking config directory in working directory"
+    if ! [ -d "${CONFIG_DIR}" ]; then 
+        white "Adding config folder"
+        mkdir -p "${CONFIG_DIR}"
+    else
+        green "config folder found, skip creating"
+    fi
+}
+
+check_workdir() {
     white "Checking for existing working directory in ${WORK_DIR}"
     if ! [ -d "${WORK_DIR}" ]; then
         create_workdir
     else
         green "${WORK_DIR} already exists, skipping"
     fi
+    check_data_dir
+    check_ipc_dir
+    check_config_dir
 }
 
 download_libsodium() {
@@ -237,7 +287,7 @@ check_for_libsodium() {
     fi
 }
 
-download_cardano_node_repository() {
+download_cardano_node() {
     if ! [ -d "${CARDANO_NODE_DIR}" ]; then
         white "Downloading cardano-node repository"
         git clone https://github.com/input-output-hk/cardano-node.git # > /dev/null 2>&1
@@ -247,7 +297,7 @@ download_cardano_node_repository() {
     fi 
 }
 
-download_cardano_db_sync_repository() {
+download_cardano_db_sync() {
     if ! [ -d "${CARDANO_DB_SYNC_DIR}" ]; then
         white "Downloading cardano-db-sync repository"
         git clone https://github.com/input-output-hk/cardano-db-sync.git # > /dev/null 2>&1
@@ -257,38 +307,15 @@ download_cardano_db_sync_repository() {
     fi 
 }
 
-create_folders() {
-    if ! [ -d "${DATA_DIR}" ]; then 
-        white "Adding db folder to working directory"
-        mkdir -p "${DATA_DIR}/mainnet"
-        mkdir -p "${DATA_DIR}/testnet"
-        green "Created mainnet and testnet folders in ${DATA_DIR} folder"
-    else 
-        green "${DATA_DIR} found, skip creating"
-    fi
-    if ! [ -d "${IPC_DIR}" ]; then 
-        white "Adding ipc folder"
-        mkdir -p "${IPC_DIR}"
-    else
-        green "ipc folder found, skip creating"
-    fi
-    if ! [ -d "${CONFIG_DIR}" ]; then 
-        white "Adding config folder"
-        mkdir -p "${CONFIG_DIR}"
-    else
-        green "config folder found, skip creating"
-    fi
-
-}
-
-download_cardano_repositories_to_workdir() {
+download_cardano_repositories() {
+    white "Downloading cardano repositories"
     cd "${WORK_DIR}" || exit 
-    download_cardano_node_repository
-    download_cardano_db_sync_repository
-    create_folders
+    download_cardano_node
+    download_cardano_db_sync
 }
 
 checkout_latest_node_version() {
+    white "Checking out latest node version"
     cd "${CARDANO_NODE_DIR}" || exit
     if [ -z "${LATEST_VERSION}" ]; then
         git checkout tags/1.27.0
@@ -301,6 +328,7 @@ checkout_latest_node_version() {
 configure_build_options() {
     white "Configuring the build options to build with GHC version ${GHC_VERSION}"
     [ -f "${PROJECT_FILE}" ] && rm "${PROJECT_FILE}"
+    white "Checking Cabal and GHC to again to really make sure they are installed"
     check_cabal
     check_ghc
     cabal configure --with-compiler=ghc-"${GHC_VERSION}" # > /dev/null 2>&1
@@ -315,6 +343,7 @@ update_local_project_file_to_use_libsodium_compiler() {
 }
 
 check_local_project_file() {
+    white "Checking local project file"
     if ! [ -f "${PROJECT_FILE}" ]; then
         update_local_project_file_to_use_libsodium_compiler
     elif grep -q "package cardano-crypto-praos" "${PROJECT_FILE}" && grep -q "package cardano-crypto-praos" "${PROJECT_FILE}"; then
@@ -324,9 +353,16 @@ check_local_project_file() {
     fi
 }
 
-build_latest_node_version() {
+prepare_build() {
+    white "Preparing build"
+    check_dependencies
+    check_workdir
     check_for_libsodium
-    download_cardano_repositories_to_workdir
+}
+
+build_latest_node_version() {
+    white "Start building latest cardano-node"
+    download_cardano_repositories
     checkout_latest_node_version
     configure_build_options
     check_local_project_file
@@ -334,20 +370,21 @@ build_latest_node_version() {
     cabal build all # > /dev/null 2>&1
 }
 
-check_for_binary_install_directory() {
+check_install_dir() {
+    white "Checking for binary install directory ${INSTALL_DIR}"
     if ! [ -d "${INSTALL_DIR}" ]; then 
         mkdir -p "${INSTALL_DIR}" 
     fi
 }
 
-installing_binaries_to_local_bin() {
+install_binaries() {
+    check_install_dir
     white "Installing the binaries to ${INSTALL_DIR}"
-    check_for_binary_install_directory
     cp -p "$(./scripts/bin-path.sh cardano-node)" "${INSTALL_DIR}"
     cp -p "$(./scripts/bin-path.sh cardano-cli)" "${INSTALL_DIR}"
 }
 
-check_cardano_cli_installation() {
+check_cardano_cli_install() {
     white "Checking cardano-cli installation"
     if ! [ -f "${CLI_BINARY}" ]; then 
         red "Failed installing cardano-cli"
@@ -360,7 +397,7 @@ check_cardano_cli_installation() {
     fi
 }
 
-check_cardano_node_installation() {
+check_cardano_node_install() {
     white "Checking cardano-node installation"
     if ! [ -f "${NODE_BINARY}" ]; then 
         red "Failed installing cardano-node"
@@ -373,26 +410,29 @@ check_cardano_node_installation() {
     fi
 }
 
-check_installation() {
+install_latest_node() {
+    prepare_build
+    build_latest_node_version
+    install_binaries
+    check_install
+}
+
+check_install() {
     white "Checking binaries"
-    check_cardano_cli_installation
-    check_cardano_node_installation
+    check_cardano_cli_install
+    check_cardano_node_install
 }
 
 main() {
     [ -z "${LATEST_VERSION}" ] && red "Couldn't fetch latest node version, exiting." && exit 1
+    check_version
     white "Installing the latest cardano-node (${LATEST_VERSION}) and its components to ${WORK_DIR}"
     find_shell
     ask_rc
     ask_rc_answer=$?
     adjust_rc $ask_rc_answer
     install_os_packages
-    check_dependencies
-    check_dependencies
-    check_existing_workdir
-    build_latest_node_version
-    installing_binaries_to_local_bin
-    check_installation
+    install_latest_node
 }
 
-main
+main)
