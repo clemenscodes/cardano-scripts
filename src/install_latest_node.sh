@@ -1,6 +1,6 @@
 #!/bin/sh
 
-(WORK_DIR="${HOME}/.cardano"
+WORK_DIR="${HOME}/.cardano"
 CARDANO_NODE_DIR="${WORK_DIR}/cardano-node"
 CARDANO_DB_SYNC_DIR="${WORK_DIR}/cardano-db-sync"
 PROJECT_FILE="${CARDANO_NODE_DIR}/cabal.project.local"
@@ -17,6 +17,14 @@ PLATFORM=$(uname -s)
 DISTRO=$(cat /etc/*ease | grep "DISTRIB_ID" | awk -F '=' '{print $2}')
 RELEASE_URL="https://api.github.com/repos/input-output-hk/cardano-node/releases/latest"
 LATEST_VERSION=$(curl -s "${RELEASE_URL}" | grep tag_name | awk -F ':' '{print $2}' | tr -d '"' | tr -d ',' | tr -d '[:space:]') 
+ENVIRONMENT="$(cat <<EOF
+export LD_LIBRARY_PATH="/usr/local/lib:$LD_LIBRARY_PATH"             
+export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH"
+export PATH="$HOME/.local/bin/:$PATH"
+export CARDANO_NODE_SOCKET_PATH="$HOME/.cardano/ipc/node.socket"
+export PATH="$HOME/.cabal/bin:$HOME/.ghcup/bin:$PATH"
+EOF
+)"
 
 green() {
     printf "\\033[0;32m%s\\033[0m\\n" "$1"
@@ -47,67 +55,59 @@ find_shell() {
     case $SHELL in
         */zsh)
             white "Found zsh"
-			SHELL_PROFILE_FILE="$HOME/.zshrc"
+            SHELL_PROFILE_FILE="$HOME/.zshrc"
             MY_SHELL="zsh" ;;
-		*/bash)
+        */bash)
             white "Found bash"
-			SHELL_PROFILE_FILE="$HOME/.bashrc"
+            SHELL_PROFILE_FILE="$HOME/.bashrc"
             MY_SHELL="bash" ;;
-		*/sh) 
+        */sh) 
             white "Found sh"
-			if [ -n "${BASH}" ]; then
+            if [ -n "${BASH}" ]; then
                 white "Found bash"
-				SHELL_PROFILE_FILE="$HOME/.bashrc"
+                SHELL_PROFILE_FILE="$HOME/.bashrc"
                 MY_SHELL="bash"
-			elif [ -n "${ZSH_VERSION}" ]; then
+            elif [ -n "${ZSH_VERSION}" ]; then
                 white "Found zsh"
-				SHELL_PROFILE_FILE="$HOME/.zshrc"
+                SHELL_PROFILE_FILE="$HOME/.zshrc"
                 MY_SHELL="zsh"
-			fi ;;
-		*) red "No shell found, exporting environment variables to current shell session only" ;;
-	esac
+            fi ;;
+        *) red "No shell found, exporting environment variables to current shell session only" ;;
+    esac
 }
 
 ask_rc() {
-	while true; do
+    while true; do
         [ -z "${MY_SHELL}" ] && return 0
         white "Detected ${MY_SHELL}"
         white "Do you want to automatically add the required PATH variables to \"${SHELL_PROFILE_FILE}\"?"
         white "[y] Yes (default) [n] No  [?] Help"
         read -r rc_answer
-		case $rc_answer in
-			[Yy]* | "") green "Proceeding to add PATH variables for ${MY_SHELL}" && return 1;;
-			[Nn]*) red "Skipped adding PATH variables" && return 0;;
-			*)
-				white "Possible choices are:"
-				green "Y - Yes (default)"
-				red "N - No, don't mess with my configuration"
-				white "Please make your choice and press ENTER." ;;
-		esac
-	done
-	unset rc_answer
+        case $rc_answer in
+            [Yy]* | "") green "Proceeding to add PATH variables for ${MY_SHELL}" && return 1;;
+            [Nn]*) red "Skipped adding PATH variables" && return 0;;
+            *)
+                white "Possible choices are:"
+                green "Y - Yes (default)"
+                red "N - No, don't mess with my configuration"
+                white "Please make your choice and press ENTER." ;;
+        esac
+    done
+    unset rc_answer
 }
 
 adjust_rc() {
     case $1 in
-		1) 
-            ld=$(grep LD_LIBRARY_PATH "${SHELL_PROFILE_FILE}")
-            pkg=$(grep PKG_CONFIG_PATH "${SHELL_PROFILE_FILE}")
-            bin=$(grep .local/bin/ "${SHELL_PROFILE_FILE}")
-            socket=$(grep CARDANO_NODE_SOCKET_PATH "${SHELL_PROFILE_FILE}")
-            [ -z "${ld}" ] && echo 'export LD_LIBRARY_PATH="/usr/local/lib:$LD_LIBRARY_PATH"' >> "${SHELL_PROFILE_FILE}"
-            [ -z "${pkg}" ] && echo 'export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH"' >> "${SHELL_PROFILE_FILE}"
-            [ -z "${bin}" ] && echo 'export PATH="$HOME/.local/bin/:$PATH"' >> "${SHELL_PROFILE_FILE}"
-            [ -z "${socket}" ] && echo 'export CARDANO_NODE_SOCKET_PATH="$HOME/cardano/ipc/node.socket"' >> "${SHELL_PROFILE_FILE}"
-            ;;
-		*) 
+        1) echo "${ENVIRONMENT}" >> "${SHELL_PROFILE_FILE}" ;;
+        *) 
             white "Exporting variables"
             export LD_LIBRARY_PATH="/usr/local/lib:$LD_LIBRARY_PATH"
             export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH"
             export PATH="$HOME/.local/bin/:$PATH"
             export CARDANO_NODE_SOCKET_PATH="$HOME/cardano/ipc/node.socket"
+            export PATH="$HOME/.cabal/bin:$HOME/.ghcup/bin:$PATH"
             ;;
-	esac
+    esac
 }
 
 install_os_packages() {
@@ -133,8 +133,7 @@ install_os_packages() {
 }
 
 install_ghcup() {
-    white "Installing ghcup"
-    (
+    (white "Installing ghcup"
     export BOOTSTRAP_HASKELL_NONINTERACTIVE=1
     export BOOTSTRAP_HASKELL_NO_UPGRADE=1
     export BOOTSTRAP_HASKELL_VERBOSE=1
@@ -142,23 +141,20 @@ install_ghcup() {
     export BOOTSTRAP_HASKELL_CABAL_VERSION="${CABAL_VERSION}"
     export BOOTSTRAP_HASKELL_ADJUST_BASHRC=true
     curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh
-    )
-    ghcup --version
+    ghcup --version)
 }
 
 check_ghcup() {
     white "Checking for ghcup"
-    if ! type ghcup > /dev/null 2>&1; then 
-        install_ghcup
-    fi
-    . "${HOME}/.ghcup/env"
+    ! type ghcup > /dev/null 2>&1 && install_ghcup
+    export PATH="$HOME/.cabal/bin:$HOME/.ghcup/bin:$PATH"
     white "$(ghcup --version)"
 }
 
 install_ghc() {
     white "Installing GHC ${GHC_VERSION}"
     ghcup install ghc --set "${GHC_VERSION}"
-    . "${HOME}/.ghcup/env"
+    export PATH="$HOME/.cabal/bin:$HOME/.ghcup/bin:$PATH"
     check_ghc
 }
 
@@ -173,7 +169,7 @@ check_ghc() {
         install_ghc
     fi 
     white "$(ghc --version)"
-    . "${HOME}/.ghcup/env"
+    export PATH="$HOME/.cabal/bin:$HOME/.ghcup/bin:$PATH"
 }
 
 check_cabal() {
@@ -187,7 +183,7 @@ check_cabal() {
         ghcup rm cabal "${installed_cabal}"
         install_cabal
     fi 
-    . "${HOME}/.ghcup/env"
+    export PATH="$HOME/.cabal/bin:$HOME/.ghcup/bin:$PATH"
     white "$(cabal --version)"
     white "Updating cabal"
     cabal update
@@ -230,31 +226,17 @@ check_data_dir() {
 
 check_ipc_dir() {
     white "Checking ipc directory in working directory"
-    if ! [ -d "${IPC_DIR}" ]; then 
-        white "Adding ipc folder"
-        mkdir -p "${IPC_DIR}"
-    else
-        green "ipc folder found, skip creating"
-    fi
+    { ! [ -d "${IPC_DIR}" ] && white "Adding ipc folder" && mkdir -p "${IPC_DIR}"; }|| green "ipc folder found, skip creating"
 }
 
 check_config_dir() {
     white "Checking config directory in working directory"
-    if ! [ -d "${CONFIG_DIR}" ]; then 
-        white "Adding config folder"
-        mkdir -p "${CONFIG_DIR}"
-    else
-        green "config folder found, skip creating"
-    fi
+    { ! [ -d "${CONFIG_DIR}" ] && white "Adding config folder" && mkdir -p "${CONFIG_DIR}"; } || green "config folder found, skip creating"
 }
 
 check_workdir() {
     white "Checking for existing working directory in ${WORK_DIR}"
-    if ! [ -d "${WORK_DIR}" ]; then
-        create_workdir
-    else
-        green "${WORK_DIR} already exists, skipping"
-    fi
+    { ! [ -d "${WORK_DIR}" ] && create_workdir; } || green "${WORK_DIR} already exists, skipping"
     check_data_dir
     check_ipc_dir
     check_config_dir
@@ -270,21 +252,17 @@ install_libsodium() {
     download_libsodium
     white "Installing libsodium to ${LIBSODIUM_DIR}"
     cd "${LIBSODIUM_DIR}" || exit
-    git checkout 66f017f1 # > /dev/null 2>&1
-    ./autogen.sh # > /dev/null 2>&1
-    ./configure # > /dev/null 2>&1
-    make # > /dev/null 2>&1
-    sudo make install # > /dev/null 2>&1 
+    git checkout 66f017f1  >/dev/null
+    ./autogen.sh >/dev/null
+    ./configure >/dev/null
+    make  >/dev/null 
+    sudo make install >/dev/null
     green "Installed libsodium"
 }
 
 check_for_libsodium() {
     white "Checking for existing libsodium"
-    if ! [ -d "${LIBSODIUM_DIR}" ]; then
-        install_libsodium
-    else
-        green "Skipping installation of libsodium"
-    fi
+    { ! [ -d "${LIBSODIUM_DIR}" ] && install_libsodium; } || green "Skipping installation of libsodium"
 }
 
 download_cardano_node() {
@@ -317,11 +295,7 @@ download_cardano_repositories() {
 checkout_latest_node_version() {
     white "Checking out latest node version"
     cd "${CARDANO_NODE_DIR}" || exit
-    if [ -z "${LATEST_VERSION}" ]; then
-        git checkout tags/1.27.0
-    else
-        git checkout tags/"${LATEST_VERSION}" # > /dev/null 2>&1
-    fi
+    { [ -z "${LATEST_VERSION}" ] && git checkout tags/1.27.0; } || git checkout tags/"${LATEST_VERSION}" # > /dev/null 2>&1
     green "Successfully checked out latest node version ${LATEST_VERSION}"
 }
 
@@ -372,9 +346,7 @@ build_latest_node_version() {
 
 check_install_dir() {
     white "Checking for binary install directory ${INSTALL_DIR}"
-    if ! [ -d "${INSTALL_DIR}" ]; then 
-        mkdir -p "${INSTALL_DIR}" 
-    fi
+    ! [ -d "${INSTALL_DIR}" ] && mkdir -p "${INSTALL_DIR}" 
 }
 
 install_binaries() {
@@ -392,8 +364,10 @@ check_cardano_cli_install() {
     elif [ "$("${CLI_BINARY}" --version | awk '{print $2}' | head -n1)" = "${LATEST_VERSION}" ]; then
         cardano-cli --version
         green "Successfully installed cardano-cli"
+        return 0
     else 
         red "Failed installing cardano-cli"
+        exit 1
     fi
 }
 
@@ -407,6 +381,7 @@ check_cardano_node_install() {
         green "Successfully installed cardano-node"
     else 
         red "Failed installing cardano-node"
+        exit 1
     fi
 }
 
@@ -424,7 +399,7 @@ check_install() {
 }
 
 main() {
-    [ -z "${LATEST_VERSION}" ] && red "Couldn't fetch latest node version, exiting." && exit 1
+    [ -z "${LATEST_VERSION}" ] && red "Couldn't fetch latest node version, try again after making sure you have curl installed" && exit 1
     check_version
     white "Installing the latest cardano-node (${LATEST_VERSION}) and its components to ${WORK_DIR}"
     find_shell
@@ -435,4 +410,4 @@ main() {
     install_latest_node
 }
 
-main)
+main
