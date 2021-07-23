@@ -20,11 +20,23 @@ CARDANO_NODE_URL="https://github.com/input-output-hk/cardano-node.git"
 CARDANO_DB_SYNC_URL="https://github.com/input-output-hk/cardano-db-sync.git"
 LIBSODIUM_URL="https://github.com/input-output-hk/libsodium"
 LATEST_VERSION="$(curl -s "${RELEASE_URL}" | grep tag_name | awk -F ':' '{print $2}' | tr -d '"' | tr -d ',' | tr -d '[:space:]')"
-ENVIRONMENT="$(cat <<EOF
+LD_LIBRARY="$(cat << 'EOF'
 export LD_LIBRARY_PATH="/usr/local/lib:$LD_LIBRARY_PATH"             
+EOF
+)"
+PKG_CONFIG="$(cat << 'EOF'
 export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH"
-export PATH="$HOME/.local/bin/:$PATH"
+EOF
+)"
+CARDANO_NODE_SOCKET="$(cat << 'EOF'
 export CARDANO_NODE_SOCKET_PATH="$HOME/.cardano/ipc/node.socket"
+EOF
+)"
+INSTALL_PATH="$(cat << 'EOF'
+export PATH="$HOME/.local/bin/:$PATH"
+EOF
+)"
+GHCUP_PATH="$(cat << 'EOF'
 export PATH="$HOME/.cabal/bin:$HOME/.ghcup/bin:$PATH"
 EOF
 )"
@@ -66,17 +78,13 @@ check_version() {
 find_shell() {
     case $SHELL in
         */zsh)
-            white "Found zsh"
             SHELL_PROFILE_FILE="$HOME/.zshrc"
             MY_SHELL="zsh" ;;
         */bash)
-            white "Found bash"
             SHELL_PROFILE_FILE="$HOME/.bashrc"
             MY_SHELL="bash" ;;
         */sh) 
-            white "Found sh"
             if [ -n "${BASH}" ]; then
-                white "Found bash"
                 SHELL_PROFILE_FILE="$HOME/.bashrc"
                 MY_SHELL="bash"
             elif [ -n "${ZSH_VERSION}" ]; then
@@ -91,7 +99,7 @@ find_shell() {
 ask_rc() {
     while true; do
         [ -z "${MY_SHELL}" ] && return 0
-        white "Detected ${MY_SHELL}"
+        green "Detected ${MY_SHELL}"
         white "Do you want to automatically add the required PATH variables to \"${SHELL_PROFILE_FILE}\"?"
         white "[y] Yes (default) [n] No  [?] Help"
         read -r rc_answer
@@ -110,13 +118,19 @@ ask_rc() {
 
 adjust_rc() {
     case $1 in
-        1) echo "${ENVIRONMENT}" >> "${SHELL_PROFILE_FILE}" ;;
+        1)
+            white "Setting path variables if not already set"
+            [ -z "${LD_LIBRARY_PATH}" ] && echo "${LD_LIBRARY}" >> "${SHELL_PROFILE_FILE}" 
+            [ -z "${PKG_CONFIG_PATH}" ] && echo "${PKG_CONFIG}" >> "${SHELL_PROFILE_FILE}" 
+            [ -z "${CARDANO_NODE_SOCKET_PATH}" ] && echo "${CARDANO_NODE_SOCKET}" >> "${SHELL_PROFILE_FILE}" 
+            echo "${PATH}" | grep -q "\.local/bin/" || echo "${INSTALL_PATH}" >> "${SHELL_PROFILE_FILE}" 
+            echo "${PATH}" | grep -q "\.ghcup/bin" || echo "${GHCUP_PATH}" >> "${SHELL_PROFILE_FILE}" ;;
         *) 
             white "Exporting variables"
             export LD_LIBRARY_PATH="/usr/local/lib:$LD_LIBRARY_PATH"
             export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH"
-            export PATH="$HOME/.local/bin/:$PATH"
             export CARDANO_NODE_SOCKET_PATH="$HOME/cardano/ipc/node.socket"
+            export PATH="$HOME/.local/bin/:$PATH"
             export PATH="$HOME/.cabal/bin:$HOME/.ghcup/bin:$PATH" ;;
     esac
 }
@@ -130,15 +144,14 @@ install_os_packages() {
                 Fedora*|Hat*|CentOs*)
                     { white "Updating"
                     sudo yum update -y >/dev/null 2>&1 &&
-                    white "Installing curl git gcc gcc-c++ tmux gmp-devel make tar xz wget zlib-devel libtool autoconf" &&
+                    white "Installing ${DISTRO} dependencies" &&
                     sudo yum install curl git gcc gcc-c++ tmux gmp-devel make tar xz wget zlib-devel libtool autoconf -y >/dev/null 2>&1 &&
-                    white "Installing systemd-devel ncurses-devel ncurses-compat-libs" &&
                     sudo yum install systemd-devel ncurses-devel ncurses-compat-libs -y >/dev/null 2>&1; } || die "Failed installing packages" 
                     ;;
                 Ubuntu*|Debian*)
                     { white "Updating" &&
                     sudo apt-get update -y >/dev/null 2>&1 &&
-                    white "Installing: curl automake build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev libsystemd-dev zlib1g-dev make g++ tmux git jq wget libncursesw5 libtool autoconf" &&
+                    white "Installing ${DISTRO} dependencies" &&
                     sudo apt-get install curl automake build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev libsystemd-dev zlib1g-dev make g++ tmux git jq wget libncursesw5 libtool autoconf -y >/dev/null 2>&1; } || die "Installation of packages failed"
                     ;;
                 *) die "Unsupported distribution" 
@@ -150,12 +163,11 @@ install_os_packages() {
 install_ghcup() {
     ({ white "Installing ghcup" &&
     export BOOTSTRAP_HASKELL_NONINTERACTIVE=1 &&
-    export BOOTSTRAP_HASKELL_NO_UPGRADE=1 &&
-    export BOOTSTRAP_HASKELL_VERBOSE=1 &&
     export BOOTSTRAP_HASKELL_GHC_VERSION="${GHC_VERSION}" &&
     export BOOTSTRAP_HASKELL_CABAL_VERSION="${CABAL_VERSION}" &&
-    export BOOTSTRAP_HASKELL_ADJUST_BASHRC=true &&
     curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh >/dev/null 2>&1; } || die "Failed installing ghcup")
+    export PATH="$HOME/.cabal/bin:$HOME/.ghcup/bin:$PATH"
+    green "Installed ghcup"
 }
 
 check_ghcup() {
@@ -205,6 +217,7 @@ install_cabal() {
     { ghcup install cabal --set "${CABAL_VERSION}" && check_cabal; } || die "Failed installing cabal ${CABAL_VERSION}"
     green "Installed cabal ${CABAL_VERSION}"
     { white "Updating cabal" && cabal update; } || die "Updating cabal failed"
+    export PATH="$HOME/.cabal/bin:$HOME/.ghcup/bin:$PATH"
     green "Updated cabal"
 }
 
@@ -308,8 +321,7 @@ configure_build_options() {
     white "Configuring the build options to build with GHC version ${GHC_VERSION}"
     [ -f "${PROJECT_FILE}" ] && rm "${PROJECT_FILE}"
     { check_cabal >/dev/null 2>&1 && check_ghc >/dev/null 2>&1; } || die "Failed making sure the build dependencies are installed"
-    white "Updating cabal"
-    { cabal update && cabal configure --with-compiler=ghc-"${GHC_VERSION}"; } || die "Failed configuring the build options"
+    { cabal update >/dev/null 2>&1 && cabal configure --with-compiler=ghc-"${GHC_VERSION}"; } || die "Failed configuring the build options"
     green "Configured build options"
 }
 
@@ -349,8 +361,12 @@ build_latest_node_version() {
 
 check_install_dir() {
     white "Checking for binary install directory ${INSTALL_DIR}"
-    { ! [ -d "${INSTALL_DIR}" ] && mkdir -p "${INSTALL_DIR}" && green "Created install directory ${INSTALL_DIR}"; } ||
-        die "Failed creating install directory ${INSTALL_DIR}"
+    if ! [ -d "${INSTALL_DIR}" ]; then 
+        mkdir -p "${INSTALL_DIR}" || die "Failed creating install directory ${INSTALL_DIR}"
+        green "Created install directory ${INSTALL_DIR}" 
+    else 
+        green "Install directory found"
+    fi
 
 }
 
@@ -396,12 +412,13 @@ main() {
     [ -z "${LATEST_VERSION}" ] && red "Couldn't fetch latest node version, try again after making sure you have curl installed" && exit 1
     check_version
     white "Installing the latest cardano-node (${LATEST_VERSION}) and its components to ${WORK_DIR}"
-    { find_shell && 
-    ask_rc && 
-    ask_rc_answer=$? && adjust_rc $ask_rc_answer &&
-    install_os_packages &&
-    install_latest_node &&
-    succeed "Successfully installed latest cardano node! :)"; } || die "Failed installing cardano node :("
+    find_shell
+    ask_rc  
+    ask_rc_answer=$? 
+    adjust_rc $ask_rc_answer
+    install_os_packages
+    install_latest_node
+    succeed "Successfully installed latest cardano node! :)" 
 }
 
 main
