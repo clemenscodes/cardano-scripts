@@ -308,9 +308,9 @@ checkout_latest_node_version() {
 configure_build_options() {
     white "Configuring the build options to build with GHC version ${GHC_VERSION}"
     [ -f "${PROJECT_FILE}" ] && rm "${PROJECT_FILE}"
-    white "Checking Cabal and GHC to again to really make sure they are installed"
+    white "Checking Cabal and GHC again to really make sure they are installed"
     { check_cabal && check_ghc; } || die "Failed making sure the build dependencies are installed"
-    cabal configure --with-compiler=ghc-"${GHC_VERSION}" >/dev/null 2>&1 || die "Failed configuring the build options"
+    { cabal update && cabal configure --with-compiler=ghc-"${GHC_VERSION}"; } || die "Failed configuring the build options"
     green "Configured build options"
 }
 
