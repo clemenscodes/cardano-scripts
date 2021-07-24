@@ -153,8 +153,8 @@ install_package() {
 check_package() {
     white "Checking for $2"
     case "$1" in 
-        apt) { dpkg -s "$2" >/dev/null 2>&1 | grep -q "ok installed" && install_package "$1" "$2"; } || green "$2 is installed" ;;
-        yum) { ! rpm -q "$2" >/dev/null 2>&1 && install_package "$1" "$2"; } || green "$2 is installed" ;;
+        apt) { [ "$(dpkg-query -W --showformat='${Status}\n' "$2" >/dev/null 2>&1)" ] && green "$2 is installed"; } || install_package "$1" "$2";;
+        yum) { [ "$(rpm -q "$2" >/dev/null 2>&1)" ] && green "$2 is installed"; } || install_package "$1" "$2";;
     esac
 }
 
@@ -162,9 +162,9 @@ setup_packages() {
     white "Updating"
     sudo "${package_manager}" update -y >/dev/null 2>&1
     white "Installing ${DISTRO} dependencies" 
-    for dependency in $1
+    for package in $1
     do
-        check_package "${package_manager}" "${dependency}"
+        check_package "${package_manager}" "${package}"
     done
 }
 
