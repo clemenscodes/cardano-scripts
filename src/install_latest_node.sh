@@ -64,6 +64,8 @@ succeed() {
 }
 
 check_version() {
+    [ -z "${LATEST_VERSION}" ] && red "Couldn't fetch latest node version, try again after making sure you have curl installed" && exit 1
+    white "Installing the latest cardano-node (${LATEST_VERSION}) and its components to ${WORK_DIR}"
     if type cardano-node >/dev/null 2>&1; then 
         installed_cardano_node_version=$(cardano-node  --version | awk '{print $2}'| head -n1)
         if [ "${installed_cardano_node_version}" = "${LATEST_VERSION}" ]; then 
@@ -71,8 +73,15 @@ check_version() {
         else 
             white "Updating cardano-node version ${installed_cardano_node_version} to version ${LATEST_VERSION}"
             install_latest_node || die "Failed updating node to ${LATEST_VERSION}"
-       fi
+        fi
     fi 
+}
+
+check_root() {
+    if [ "$(id -u)" -ne 0 ]; then 
+        white "This script will require root privileges to install the required packages"
+        sudo echo >/dev/null 2>&1
+    fi
 }
 
 find_shell() {
@@ -101,7 +110,7 @@ ask_rc() {
         [ -z "${MY_SHELL}" ] && return 0
         green "Detected ${MY_SHELL}"
         white "Do you want to automatically add the required PATH variables to \"${SHELL_PROFILE_FILE}\"?"
-        white "[y] Yes (default) [n] No  [?] Help"
+        white "[y] Yes (default) [n] No [?] Help"
         read -r rc_answer
         case $rc_answer in
             [Yy]* | "") green "Proceeding to add PATH variables for ${MY_SHELL}" && return 1;;
@@ -135,24 +144,45 @@ adjust_rc() {
     esac
 }
 
+install_package() {
+    white "Installing $2"  
+    sudo "$1" install "$2" >/dev/null 2>&1 || red "Failed installing $2"
+    green "Installed $2"
+}
+
+check_package() {
+    white "Checking for $2"
+    case "$1" in 
+        apt) { [ "$(dpkg-query -W --showformat='${Status}\n' "$2" >/dev/null 2>&1)" ] && green "$2 is installed"; } || install_package "$1" "$2";;
+        yum) { [ "$(rpm -q "$2" >/dev/null 2>&1)" ] && green "$2 is installed"; } || install_package "$1" "$2";;
+    esac
+}
+
+setup_packages() {
+    white "Updating"
+    sudo "${package_manager}" update -y >/dev/null 2>&1
+    white "Installing ${DISTRO} dependencies" 
+    for package in $1
+    do
+        check_package "${package_manager}" "${package}"
+    done
+}
+
 install_os_packages() {
     { [ -z "${PLATFORM}" ] && red "Could not detect platform"; } || green "Detected ${PLATFORM}"
     { [ -z "${DISTRO}" ] && red "Could not detect distribution"; } || green "Detected ${DISTRO}"
-    case "${PLATFORM}" in 
+    case "${PLATFORM}" in
         "linux" | "Linux")
             case "${DISTRO}" in 
                 Fedora*|Hat*|CentOs*)
-                    { white "Updating"
-                    sudo yum update -y >/dev/null 2>&1 &&
-                    white "Installing ${DISTRO} dependencies" &&
-                    sudo yum install curl git gcc gcc-c++ tmux gmp-devel make tar xz wget zlib-devel libtool autoconf -y >/dev/null 2>&1 &&
-                    sudo yum install systemd-devel ncurses-devel ncurses-compat-libs -y >/dev/null 2>&1; } || die "Failed installing packages" 
+                    package_manager="yum"
+                    packages="curl git gcc gcc-c++ tmux gmp-devel make tar xz wget zlib-devel libtool autoconf systemd-devel ncurses-devel ncurses-compat-libs"
+                    setup_packages "${packages}" || die "Failed installing packages" 
                     ;;
                 Ubuntu*|Debian*)
-                    { white "Updating" &&
-                    sudo apt-get update -y >/dev/null 2>&1 &&
-                    white "Installing ${DISTRO} dependencies" &&
-                    sudo apt-get install curl automake build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev libsystemd-dev zlib1g-dev make g++ tmux git jq wget libncursesw5 libtool autoconf -y >/dev/null 2>&1; } || die "Installation of packages failed"
+                    package_manager="apt"
+                    packages="curl automake build-essential pkg-config libffi-dev libgmp-dev libssl-dev libtinfo-dev libsystemd-dev zlib1g-dev make g++ tmux git jq wget libncursesw5 libtool autoconf"
+                    setup_packages "${packages}" || die "Failed installing packages" 
                     ;;
                 *) die "Unsupported distribution" 
             esac ;;
@@ -409,9 +439,8 @@ check_install() {
 }
 
 main() {
-    [ -z "${LATEST_VERSION}" ] && red "Couldn't fetch latest node version, try again after making sure you have curl installed" && exit 1
     check_version
-    white "Installing the latest cardano-node (${LATEST_VERSION}) and its components to ${WORK_DIR}"
+    check_root
     find_shell
     ask_rc  
     ask_rc_answer=$? 
