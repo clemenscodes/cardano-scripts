@@ -155,8 +155,13 @@ check_package() {
     white "Checking for $2"
     case "$1" in
         apt)
-            pkg="$(dpkg -s "$2" | grep "install ok installed")"
-            { [ -z "${pkg}" ] && install_package "$1" "$2"; } || green "$2 is installed";;
+            pkg="$(dpkg -s "$2" 2>/dev/null | grep "install ok installed")"
+            if [ -z "${pkg}" ]; then
+                install_package "$1" "$2"
+            else 
+                green "$2 is installed"
+            fi
+            ;;
         yum) { rpm -q "$2" >/dev/null 2>&1 && green "$2 is installed"; } || install_package "$1" "$2";;
     esac
 }
