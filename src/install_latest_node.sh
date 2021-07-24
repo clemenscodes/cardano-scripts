@@ -145,6 +145,7 @@ adjust_rc() {
 }
 
 install_package() {
+    red "$2 is not installed"
     white "Installing $2"  
     sudo "$1" install "$2" >/dev/null 2>&1 || red "Failed installing $2"
     green "Installed $2"
@@ -152,9 +153,16 @@ install_package() {
 
 check_package() {
     white "Checking for $2"
-    case "$1" in 
-        apt) { [ "$(dpkg-query -W --showformat='${Status}\n' "$2" >/dev/null 2>&1)" ] && green "$2 is installed"; } || install_package "$1" "$2";;
-        yum) { [ "$(rpm -q "$2" >/dev/null 2>&1)" ] && green "$2 is installed"; } || install_package "$1" "$2";;
+    case "$1" in
+        apt)
+            pkg="$(dpkg -s "$2" 2>/dev/null | grep "install ok installed")"
+            if [ -z "${pkg}" ]; then
+                install_package "$1" "$2"
+            else 
+                green "$2 is installed"
+            fi
+            ;;
+        yum) { rpm -q "$2" >/dev/null 2>&1 && green "$2 is installed"; } || install_package "$1" "$2";;
     esac
 }
 
