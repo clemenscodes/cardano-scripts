@@ -261,7 +261,7 @@ check_ghc() {
     elif [ "$(ghc --version | awk '{print $8}')" != "$GHC_VERSION" ]; then
         export PATH="$HOME/.cabal/bin:$HOME/.ghcup/bin:$PATH"
         installed_ghc=$(ghc --version | awk '{print $8}')
-        white "Currently GHC $installed_ghc is installed, removing it and installing desired version $GHC_VERSION"
+        red "Currently GHC $installed_ghc is installed, removing it and installing desired version $GHC_VERSION"
         ghcup rm ghc "$installed_ghc" >/dev/null 2>&1
         install_ghc >/dev/null 2>&1
         white "$(ghc --version)"
