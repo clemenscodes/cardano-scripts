@@ -108,6 +108,7 @@ change_directory() {
 }
 
 check_shell() {
+    white "Checking for shell"
     case "$SHELL" in
         */zsh)
             SHELL_PROFILE_FILE="$HOME/.zshrc"
@@ -152,11 +153,11 @@ change_shell_run_control() {
     case "$1" in
         1)
             white "Setting path variables if not already set"
-            [ -z "$LD_LIBRARY_PATH" ] && echo "$LD_LIBRARY" >> "$SHELL_PROFILE_FILE" 
-            [ -z "$PKG_CONFIG_PATH" ] && echo "$PKG_CONFIG" >> "$SHELL_PROFILE_FILE" 
-            [ -z "$CARDANO_NODE_SOCKET_PATH" ] && echo "$CARDANO_NODE_SOCKET" >> "$SHELL_PROFILE_FILE" 
-            echo "$PATH" | grep -q "\.local/bin/" || echo "$INSTALL_PATH" >> "$SHELL_PROFILE_FILE" 
-            echo "$PATH" | grep -q "\.ghcup/bin" || echo "$GHCUP_PATH" >> "$SHELL_PROFILE_FILE" ;;
+            { [ -z "$LD_LIBRARY_PATH" ] && echo "$LD_LIBRARY" >> "$SHELL_PROFILE_FILE"; } || green "LD_LIBRARY_PATH is already set"
+            { [ -z "$PKG_CONFIG_PATH" ] && echo "$PKG_CONFIG" >> "$SHELL_PROFILE_FILE"; } || green "PKG_CONFIG_PATH is already set" 
+            { [ -z "$CARDANO_NODE_SOCKET_PATH" ] && echo "$CARDANO_NODE_SOCKET" >> "$SHELL_PROFILE_FILE"; } || green "CARDANO_NODE_SOCKET_PATH is already set"
+            { echo "$PATH" | grep -q "\.local/bin/" || echo "$INSTALL_PATH" >> "$SHELL_PROFILE_FILE"; } || green "$INSTALL_DIR PATH is already set"
+            { echo "$PATH" | grep -q "\.ghcup/bin" || echo "$GHCUP_PATH" >> "$SHELL_PROFILE_FILE"; } || green "GHCup PATH is already set" ;;
         *) 
             white "Exporting variables"
             export LD_LIBRARY_PATH="/usr/local/lib:$LD_LIBRARY_PATH"
@@ -175,6 +176,7 @@ check_run_control() {
 }
 
 setup_packages() {
+    white "Setting up required packages"
     { [ -z "$PLATFORM" ] && red "Could not detect platform"; } || green "Detected $PLATFORM"
     { [ -z "$DISTRO" ] && red "Could not detect distribution"; } || green "Detected $DISTRO"
     case "$PLATFORM" in
@@ -192,6 +194,7 @@ setup_packages() {
             esac ;;
         *) die "Unsupported platform"
     esac
+    green "Successfully setup packages"
 }
 
 install_packages() {
@@ -208,10 +211,10 @@ install_packages() {
 check_package() {
     white "Checking for $2"
     case "$1" in
-        apt)
+        apt) 
             pkg_installed="$(dpkg -s "$2" 2>/dev/null | grep "install ok installed")"
             { [ -z "$pkg_installed" ] && install_package "$1" "$2"; } || green "$2 is installed";;
-        yum) 
+        yum)
             { rpm -q "$2" >/dev/null 2>&1 && green "$2 is installed"; } || install_package "$1" "$2";;
     esac
 }
@@ -332,6 +335,7 @@ check_repository() {
         if [ ! -d "$1/.git" ]; then 
             white "$1 direcory exists and is not a git repository, checking if its empty"
             if [ -z "$(ls -A "$1")" ]; then
+                white "$1 is empty, cloning into it"
                 clone_repository "$2" "$1" "$3"
             else 
                 die "Can't clone repository, directory is not empty"
