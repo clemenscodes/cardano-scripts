@@ -44,17 +44,21 @@ GHCUP_PATH="$(cat << 'EOF'
 export PATH="$HOME/.cabal/bin:$HOME/.ghcup/bin:$PATH"
 EOF
 )"
+WHITE="\\033[1;37m"
+GREEN="\\033[0;32m"
+RED="\\033[0;31m"
+SET="\\033[0m\\n"
 
 white() {
-    printf "\033[1;37m%s\\033[0m\\n" "$1"
+    printf "$WHITE%s$SET" "$1"
 }
 
 green() {
-    printf "\\033[0;32m%s\\033[0m\\n" "$1"
+    printf "$GREEN%s$SET" "$1"
 }
 
 red() {
-    printf "\\033[0;31m%s\\033[0m\\n" "$1"
+    printf "$RED%s$SET" "$1"
 }
 
 die() {
@@ -82,16 +86,25 @@ check_version() {
 check_root() {
     white "This script will require root privileges to install the required packages"
     [ "$(id -u)" -ne 0 ] && sudo echo >/dev/null 2>&1
+    green "Obtained root privileges"
 }
 
 check_directory() {
     white "Checking for $1 directory in $2"
-    { ! [ -d "$2" ] && white "Creating $2 directory" && mkdir -p "$2" && green "Created $1 directory"; } || green "$2 directory found, skipped creating"
+    { ! [ -d "$2" ] && create_directory "$1" "$2"; } || green "$2 directory found, skipped creating"
+    green "Checked directory $1 successfully"
+}
+
+create_directory() {
+    white "Creating directory $1 in $2"
+    mkdir -p "$2" || die "Failed creating $1 directory in $2"
+    green "Created $1 directory"
 }
 
 change_directory() {
     white "Changing directory to $1"
     cd "$1" || die "Failed changing directory to $1"
+    green "Successfully changed directory to $1"
 }
 
 check_shell() {
@@ -155,6 +168,7 @@ change_shell_run_control() {
 }
 
 check_run_control() {
+    check_shell
     ask_change_shell_run_control 
     ask_change_shell_run_control_answer=$? 
     change_shell_run_control $ask_change_shell_run_control_answer
@@ -188,14 +202,15 @@ install_packages() {
     do
         check_package "$package_manager" "$package"
     done
+    green "Successfully installed packages"
 }
 
 check_package() {
     white "Checking for $2"
     case "$1" in
         apt)
-            pkg="$(dpkg -s "$2" 2>/dev/null | grep "install ok installed")"
-            { [ -z "$pkg" ] && install_package "$1" "$2"; } || green "$2 is installed";;
+            pkg_installed="$(dpkg -s "$2" 2>/dev/null | grep "install ok installed")"
+            { [ -z "$pkg_installed" ] && install_package "$1" "$2"; } || green "$2 is installed";;
         yum) 
             { rpm -q "$2" >/dev/null 2>&1 && green "$2 is installed"; } || install_package "$1" "$2";;
     esac
@@ -221,11 +236,12 @@ check_dependencies() {
     check_ghcup 
     check_ghc 
     check_cabal
+    green "Successfully installed dependencies"
 }
 
 check_ghcup() {
     white "Checking for ghcup"
-    { ! type ghcup > /dev/null 2>&1 && install_ghcup; } || white "$(ghcup --version)"
+    { ! type ghcup > /dev/null 2>&1 && install_ghcup; } || green "$(ghcup --version)"
 }
 
 install_ghcup() {
@@ -250,7 +266,7 @@ check_ghc() {
         install_ghc >/dev/null 2>&1
         white "$(ghc --version)"
     else 
-        white "$(ghc --version)"
+        green "$(ghc --version)"
     fi 
 }
 
@@ -294,6 +310,7 @@ setup_workdir() {
     check_directory "testnet" "$TESTNET_DATA_DIR" &&
     check_directory "mainnet" "$MAINNET_DATA_DIR";
     } || die "Failed setting up $WORK_DIR")
+    green "Successfully setup working directory"
 }
 
 install_libsodium() {
@@ -306,7 +323,7 @@ install_libsodium() {
     make >/dev/null  2>&1 &&
     sudo make install >/dev/null 2>&1; 
     } || die "Failed installing libsodium")
-    green "Installed libsodium"
+    green "Successfully installed libsodium"
 }
 
 check_repository() {
@@ -329,7 +346,9 @@ check_repository() {
 }
 
 clone_repository() {
-    git clone "$1" "$2" >/dev/null 2>&1 || die "Failed cloning $3 repository to $1"
+    white "Cloning $3 repository to $2"
+    git clone "$1" "$2" >/dev/null 2>&1 || die "Failed cloning $3 repository to $2"
+    green "Successfully cloned $3 repository to $2"
 }
 
 clone_repositories() {
@@ -362,10 +381,10 @@ check_project_file() {
         if grep -q "package cardano-crypto-praos" "$PROJECT_FILE" && grep -q "package cardano-crypto-praos" "$PROJECT_FILE"; then
             white "Skip adjustment of $PROJECT_FILE"
         else 
-            update_project_file
+            update_project_file || die "Failed updating project file $PROJECT_FILE"
         fi
     else
-        update_project_file
+        update_project_file || die "Failed updating project file $PROJECT_FILE"
     fi
 }
 
@@ -387,7 +406,9 @@ build_latest_node() {
 }
 
 copy_binary() {
+    white "Copying $1 binary to $INSTALL_DIR"
     cp -p "$("$BIN_PATH" "$1")" "$INSTALL_DIR" || die "Failed copying $1 binary to $INSTALL_DIR"
+    green "Successfully copied $1 binary to $INSTALL_DIR"
 }
 
 install_binaries() {
@@ -395,6 +416,7 @@ install_binaries() {
     white "Installing the binaries to $INSTALL_DIR"
     copy_binary "cardano-node"
     copy_binary "cardano-cli"
+    green "Successfully copied binaries to $INSTALL_DIR"
 }
 
 check_component() {
@@ -412,19 +434,23 @@ check_install() {
     white "Checking cardano component binary installatin"
     check_component "cardano-node" "$NODE_BINARY" 
     check_component "cardano-cli" "$CLI_BINARY" 
+    green "Successfully installed cardano component binaries"
 }
 
-main() {
-    check_version
-    check_root
-    check_shell
-    check_run_control
+install_latest_node() {
     setup_packages
     prepare_build 
     build_latest_node 
     install_binaries 
     check_install
     succeed "Successfully installed latest cardano node! :)" 
+}
+
+main() {
+    check_version
+    check_root
+    check_run_control
+    install_latest_node
 }
 
 main
