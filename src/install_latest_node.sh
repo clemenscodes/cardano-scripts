@@ -247,6 +247,7 @@ check_ghc() {
         installed_ghc=$(ghc --version | awk '{print $8}')
         white "Currently GHC $installed_ghc is installed, removing it and installing desired version $GHC_VERSION"
         ghcup rm ghc "$installed_ghc" >/dev/null 2>&1
+        install_ghc >/dev/null 2>&1
         white "$(ghc --version)"
     fi 
 }
