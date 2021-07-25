@@ -156,8 +156,8 @@ change_shell_run_control() {
             { [ -z "$LD_LIBRARY_PATH" ] && echo "$LD_LIBRARY" >> "$SHELL_PROFILE_FILE"; } || green "LD_LIBRARY_PATH is already set"
             { [ -z "$PKG_CONFIG_PATH" ] && echo "$PKG_CONFIG" >> "$SHELL_PROFILE_FILE"; } || green "PKG_CONFIG_PATH is already set" 
             { [ -z "$CARDANO_NODE_SOCKET_PATH" ] && echo "$CARDANO_NODE_SOCKET" >> "$SHELL_PROFILE_FILE"; } || green "CARDANO_NODE_SOCKET_PATH is already set"
-            { echo "$PATH" | grep -q "\.local/bin/" || echo "$INSTALL_PATH" >> "$SHELL_PROFILE_FILE"; } || green "$INSTALL_DIR PATH is already set"
-            { echo "$PATH" | grep -q "\.ghcup/bin" || echo "$GHCUP_PATH" >> "$SHELL_PROFILE_FILE"; } || green "GHCup PATH is already set" ;;
+            { echo "$PATH" | grep -q "\.local/bin/" && green "$INSTALL_DIR PATH is already set"; } || echo "$INSTALL_PATH" >> "$SHELL_PROFILE_FILE"
+            { echo "$PATH" | grep -q "\.ghcup/bin" && green "GHCup PATH is already set" ; } || echo "$GHCUP_PATH" >> "$SHELL_PROFILE_FILE";;
         *) 
             white "Exporting variables"
             export LD_LIBRARY_PATH="/usr/local/lib:$LD_LIBRARY_PATH"
@@ -374,6 +374,7 @@ configure_build() {
     { check_cabal && check_ghc; } || die "Failed making sure build dependencies are available"
     white "Updating cabal"
     cabal update >/dev/null 2>&1 && green "Updated cabal"
+    [ -f "$PROJECT_FILE" ] && rm "$PROJECT_FILE"
     white "Configuring the build options to build with GHC version $GHC_VERSION"
     cabal configure --with-compiler=ghc-"$GHC_VERSION" || die "Failed configuring the build options"
     green "Configured build options"
