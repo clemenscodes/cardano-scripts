@@ -283,11 +283,11 @@ check_cabal() {
         install_cabal  
     elif [ "$(cabal --version | head -n1 | awk '{print $3}')" != "$CABAL_VERSION" ]; then
         installed_cabal=$(cabal --version | head -n1 | awk '{print $3}')
-        white "Currently cabal version $installed_cabal is installed, removing it and installing desired version $CABAL_VERSION"
+        red "Currently cabal version $installed_cabal is installed, removing it and installing desired version $CABAL_VERSION"
         ghcup rm cabal "$installed_cabal"
         install_cabal
     else 
-        white "$(cabal --version | head -n1)"
+        green "$(cabal --version | head -n1)"
     fi 
 }
 
@@ -315,8 +315,8 @@ setup_workdir() {
 
 install_libsodium() {
     check_repository "$LIBSODIUM_DIR" "$LIBSODIUM_URL" "libsodium"
-    white "Installing libsodium to $LIBSODIUM_DIR"
     change_directory "$LIBSODIUM_DIR"
+    white "Installing libsodium to $LIBSODIUM_DIR"
     ({ git checkout 66f017f1  >/dev/null 2>&1 &&
     ./autogen.sh >/dev/null 2>&1 &&
     ./configure >/dev/null 2>&1 &&
@@ -332,7 +332,7 @@ check_repository() {
         if [ ! -d "$1/.git" ]; then 
             white "$1 direcory exists and is not a git repository, checking if its empty"
             if [ -z "$(ls -A "$1")" ]; then
-                clone_repository "$2" "$1"
+                clone_repository "$2" "$1" "$3"
             else 
                 die "Can't clone repository, directory is not empty"
             fi
@@ -341,7 +341,7 @@ check_repository() {
         fi
     else 
         white "$3 directory not found, cloning it into $1"
-        clone_repository "$2" "$1"
+        clone_repository "$2" "$1" "$3"
     fi 
 }
 
