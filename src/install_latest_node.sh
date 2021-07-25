@@ -249,6 +249,8 @@ check_ghc() {
         ghcup rm ghc "$installed_ghc" >/dev/null 2>&1
         install_ghc >/dev/null 2>&1
         white "$(ghc --version)"
+    else 
+        white "$(ghc --version)"
     fi 
 }
 
