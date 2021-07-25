@@ -344,10 +344,12 @@ checkout_latest_version() {
 }
 
 configure_build() {
+    white "Making sure correct build dependencies are available"
+    { check_cabal && check_ghc; } || die "Failed making sure build dependencies are available"
     white "Updating cabal"
     cabal update >/dev/null 2>&1 && green "Updated cabal"
     white "Configuring the build options to build with GHC version $GHC_VERSION"
-   cabal configure --with-compiler=ghc-"$GHC_VERSION" || die "Failed configuring the build options"
+    cabal configure --with-compiler=ghc-"$GHC_VERSION" || die "Failed configuring the build options"
     green "Configured build options"
 }
 
