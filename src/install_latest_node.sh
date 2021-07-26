@@ -1,17 +1,23 @@
 #!/bin/sh
 
-WORK_DIR="$HOME/.cardano"
+RUNNER="${SUDO_USER:-$USER}"
+USER_HOME="/home/$RUNNER"
+WORK_DIR="$USER_HOME/.cardano"
 CARDANO_NODE_DIR="$WORK_DIR/cardano-node"
 BIN_PATH="$CARDANO_NODE_DIR/scripts/bin-path.sh"
 CARDANO_DB_SYNC_DIR="$WORK_DIR/cardano-db-sync"
 PROJECT_FILE="$CARDANO_NODE_DIR/cabal.project.local"
-INSTALL_DIR="$HOME/.local/bin"
+INSTALL_DIR="$USER_HOME/.local/bin"
 IPC_DIR="$WORK_DIR/ipc"
 CONFIG_DIR="$WORK_DIR/config"
 DATA_DIR="$WORK_DIR/data/db"
 MAINNET_DATA_DIR="$DATA_DIR/mainnet"
 TESTNET_DATA_DIR="$DATA_DIR/testnet"
 LIBSODIUM_DIR="$WORK_DIR/libsodium"
+GHCUP_INSTALL_PATH="$USER_HOME/.ghcup"
+GHCUP_BINARY="$GHCUP_INSTALL_PATH/bin/ghcup"
+GHC_BINARY="$GHCUP_INSTALL_PATH/bin/ghc"
+CABAL_BINARY="$GHCUP_INSTALL_PATH/bin/cabal"
 CLI_BINARY="$INSTALL_DIR/cardano-cli"
 NODE_BINARY="$INSTALL_DIR/cardano-node"
 GHC_VERSION="8.10.4"
@@ -71,28 +77,30 @@ succeed() {
 
 check_version() {
     [ -z "$LATEST_VERSION" ] && red "Couldn't fetch latest node version, try again after making sure you have curl installed" && exit 1
-    white "Installing the latest cardano-node ($LATEST_VERSION) and its components to $WORK_DIR"
-    if type cardano-node >/dev/null 2>&1; then 
-        installed_cardano_node_version=$(cardano-node  --version | awk '{print $2}'| head -n1)
+    if type "$NODE_BINARY" >/dev/null 2>&1; then 
+        installed_cardano_node_version=$("$NODE_BINARY"  --version | awk '{print $2}'| head -n1)
         if [ "$installed_cardano_node_version" = "$LATEST_VERSION" ]; then 
             succeed "Already installed latest cardano-node (v$installed_cardano_node_version)"
         else 
             white "Updating cardano-node version $installed_cardano_node_version to version $LATEST_VERSION"
             install_latest_node || die "Failed updating node to $LATEST_VERSION"
         fi
+    else 
+        white "Installing the latest cardano-node ($LATEST_VERSION) and its components to $WORK_DIR"
     fi 
 }
 
 check_root() {
-    white "This script will require root privileges to install the required packages"
-    [ "$(id -u)" -ne 0 ] && sudo echo >/dev/null 2>&1
-    green "Obtained root privileges"
+    if [ "$(id -u)" -ne 0 ]; then 
+        white "This script will require root privileges to install the required packages"
+        sudo echo >/dev/null 2>&1
+        green "Obtained root privileges"
+    fi
 }
 
 check_directory() {
     white "Checking for $1 directory in $2"
     { ! [ -d "$2" ] && create_directory "$1" "$2"; } || green "$2 directory found, skipped creating"
-    green "Checked directory $1 successfully"
 }
 
 create_directory() {
@@ -111,18 +119,18 @@ check_shell() {
     white "Checking for shell"
     case "$SHELL" in
         */zsh)
-            SHELL_PROFILE_FILE="$HOME/.zshrc"
+            SHELL_PROFILE_FILE="$USER_HOME/.zshrc"
             MY_SHELL="zsh" ;;
         */bash)
-            SHELL_PROFILE_FILE="$HOME/.bashrc"
+            SHELL_PROFILE_FILE="$USER_HOME/.bashrc"
             MY_SHELL="bash" ;;
         */sh) 
             if [ -n "$BASH" ]; then
-                SHELL_PROFILE_FILE="$HOME/.bashrc"
+                SHELL_PROFILE_FILE="$USER_HOME/.bashrc"
                 MY_SHELL="bash"
             elif [ -n "$ZSH_VERSION" ]; then
                 white "Found zsh"
-                SHELL_PROFILE_FILE="$HOME/.zshrc"
+                SHELL_PROFILE_FILE="$USER_HOME/.zshrc"
                 MY_SHELL="zsh"
             fi ;;
         *) red "No shell detected exporting environment variables to current shell session only";;
@@ -149,22 +157,31 @@ ask_change_shell_run_control() {
     unset answer
 }
 
+check_env() {
+    white "Checking for $3 in $SHELL_PROFILE_FILE"
+    if grep -q "$1" "$SHELL_PROFILE_FILE"; then 
+        green "$3 is already set"
+    else 
+        echo "$2" >> "$SHELL_PROFILE_FILE"
+        green "Set $3 in $SHELL_PROFILE_FILE"
+    fi
+}
+
 change_shell_run_control() {
     case "$1" in
         1)
-            white "Setting path variables if not already set"
-            { [ -z "$LD_LIBRARY_PATH" ] && echo "$LD_LIBRARY" >> "$SHELL_PROFILE_FILE"; } || green "LD_LIBRARY_PATH is already set"
-            { [ -z "$PKG_CONFIG_PATH" ] && echo "$PKG_CONFIG" >> "$SHELL_PROFILE_FILE"; } || green "PKG_CONFIG_PATH is already set" 
-            { [ -z "$CARDANO_NODE_SOCKET_PATH" ] && echo "$CARDANO_NODE_SOCKET" >> "$SHELL_PROFILE_FILE"; } || green "CARDANO_NODE_SOCKET_PATH is already set"
-            { echo "$PATH" | grep -q "\.local/bin/" && green "$INSTALL_DIR PATH is already set"; } || echo "$INSTALL_PATH" >> "$SHELL_PROFILE_FILE"
-            { echo "$PATH" | grep -q "\.ghcup/bin" && green "GHCup PATH is already set" ; } || echo "$GHCUP_PATH" >> "$SHELL_PROFILE_FILE";;
+            check_env "LD_LIBRARY_PATH" "$LD_LIBRARY" "Libsodium library path"
+            check_env "PKG_CONFIG_PATH" "$PKG_CONFIG" "Libsodium package configuration path"
+            check_env "CARDANO_NODE_SOCKET_PATH" "$CARDANO_NODE_SOCKET" "Socket for inter-process-communication"
+            check_env "\.local/bin" "$INSTALL_PATH" "Cardano binary installation path"
+            check_env "\.ghcup/bin" "$GHCUP_PATH" "GHCup installation path";;
         *) 
             white "Exporting variables"
             export LD_LIBRARY_PATH="/usr/local/lib:$LD_LIBRARY_PATH"
             export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH"
-            export CARDANO_NODE_SOCKET_PATH="$HOME/cardano/ipc/node.socket"
-            export PATH="$HOME/.local/bin/:$PATH"
-            export PATH="$HOME/.cabal/bin:$HOME/.ghcup/bin:$PATH" ;;
+            export CARDANO_NODE_SOCKET_PATH="$USER_HOME/cardano/ipc/node.socket"
+            export PATH="$USER_HOME/.local/bin/:$PATH"
+            export PATH="$USER_HOME/.cabal/bin:$USER_HOME/.ghcup/bin:$PATH" ;;
     esac
 }
 
@@ -228,7 +245,7 @@ install_package() {
 
 prepare_build() {
     white "Preparing build"
-    check_dependencies 
+    check_dependencies
     setup_workdir
     install_libsodium
     green "Prepared build"
@@ -236,71 +253,104 @@ prepare_build() {
 
 check_dependencies() {
     white "Checking dependencies"
-    check_ghcup 
-    check_ghc 
+    check_ghcup
+    check_ghc
     check_cabal
     green "Successfully installed dependencies"
 }
 
 check_ghcup() {
-    white "Checking for ghcup"
-    { ! type ghcup > /dev/null 2>&1 && install_ghcup; } || green "$(ghcup --version)"
+    white "Checking for GHCup"
+    if [ -d "$GHCUP_INSTALL_PATH" ]; then 
+        if [ -f "$GHCUP_BINARY" ]; then
+            green "$("$GHCUP_BINARY" --version)"
+        else 
+            die "Failed installing GHCup"
+        fi
+    else 
+        red "GHCup is not installed"
+        install_ghcup;
+    fi
 }
 
 install_ghcup() {
-    ({ white "Installing ghcup" &&
-    export BOOTSTRAP_HASKELL_NONINTERACTIVE=1 &&
-    export BOOTSTRAP_HASKELL_GHC_VERSION="$GHC_VERSION" &&
-    export BOOTSTRAP_HASKELL_CABAL_VERSION="$CABAL_VERSION" &&
-    curl --proto '=https' --tlsv1.2 -sSf "$GHCUP_INSTALL_URL" | sh >/dev/null 2>&1; } || die "Failed installing ghcup")
-    export PATH="$HOME/.cabal/bin:$HOME/.ghcup/bin:$PATH"
-    green "Installed ghcup"
+    if [ "$(id -u)" -eq 0 ]; then 
+        {
+        white "Installing GHCup as $RUNNER"
+        ghcup_script="
+        export BOOTSTRAP_HASKELL_NONINTERACTIVE=1  
+        export BOOTSTRAP_HASKELL_GHC_VERSION=$GHC_VERSION
+        export BOOTSTRAP_HASKELL_CABAL_VERSION=$CABAL_VERSION
+        $(curl --proto '=https' --tlsv1.2 -sSf "$GHCUP_INSTALL_URL")"
+        su - "$RUNNER" -c "eval $ghcup_script" >/dev/null 2>&1
+        } || die "Failed installing GHCup"
+    else 
+        ({
+        white "Installing GHCup"
+        export BOOTSTRAP_HASKELL_NONINTERACTIVE=1
+        export BOOTSTRAP_HASKELL_GHC_VERSION="$GHC_VERSION"
+        export BOOTSTRAP_HASKELL_CABAL_VERSION="$CABAL_VERSION"
+        curl --proto '=https' --tlsv1.2 -sSf "$GHCUP_INSTALL_URL" | sh >/dev/null 2>&1
+        } || die "Failed installing GHCup")
+    fi
+    export PATH="$USER_HOME/.cabal/bin:$USER_HOME/.ghcup/bin:$PATH"
+    green "Installed GHCup"
 }
 
 check_ghc() {
     white "Checking for GHC"
-    if ! type ghc > /dev/null 2>&1; then 
+    if ! type "$GHC_BINARY" >/dev/null 2>&1; then 
+        red "GHC is not installed"
         install_ghc
-    elif [ "$(ghc --version | awk '{print $8}')" != "$GHC_VERSION" ]; then
-        export PATH="$HOME/.cabal/bin:$HOME/.ghcup/bin:$PATH"
-        installed_ghc=$(ghc --version | awk '{print $8}')
-        red "Currently GHC $installed_ghc is installed, removing it and installing desired version $GHC_VERSION"
-        ghcup rm ghc "$installed_ghc" >/dev/null 2>&1
-        install_ghc >/dev/null 2>&1
-        white "$(ghc --version)"
+    elif [ "$("$GHC_BINARY" --version | awk '{print $8}')" != "$GHC_VERSION" ]; then
+        export PATH="$USER_HOME/.cabal/bin:$USER_HOME/.ghcup/bin:$PATH"
+        installed_ghc=$("$GHC_BINARY" --version | awk '{print $8}')
+        red "Currently GHC $installed_ghc is installed, installing desired version $GHC_VERSION and setting it as default"
+        install_ghc 
+        "$GHCUP_BINARY" set "$installed_ghc" >/dev/null 2>&1 
+        white "$("$GHC_BINARY" --version)"
     else 
-        green "$(ghc --version)"
+        green "$("$GHC_BINARY" --version)"
     fi 
 }
 
 install_ghc() {
     white "Installing GHC $GHC_VERSION"
-    ! type ghcup >/dev/null 2>&1 && install_ghcup; 
-    { ghcup install ghc --set "$GHC_VERSION" && check_ghc; } || die "Failed installing GHC"
+    ! type "$GHCUP_BINARY" >/dev/null 2>&1 && install_ghcup; 
+    {
+    "$GHCUP_BINARY" install ghc "$GHC_VERSION" >/dev/null 2>&1 && 
+    "$GHCUP_BINARY" set "$GHC_VERSION" >/dev/null 2>&1 &&
+    check_ghc
+    } || die "Failed installing GHC"
+    export PATH="$USER_HOME/.cabal/bin:$USER_HOME/.ghcup/bin:$PATH"
     green "Installed GHC $GHC_VERSION"
 }
 
 check_cabal() {
     white "Checking for Cabal"
-    if ! type cabal > /dev/null 2>&1; then 
+    if ! type "$CABAL_BINARY" > /dev/null 2>&1; then 
         install_cabal  
-    elif [ "$(cabal --version | head -n1 | awk '{print $3}')" != "$CABAL_VERSION" ]; then
+    elif [ "$("$CABAL_BINARY" --version | head -n1 | awk '{print $3}')" != "$CABAL_VERSION" ]; then
         installed_cabal=$(cabal --version | head -n1 | awk '{print $3}')
-        red "Currently cabal version $installed_cabal is installed, removing it and installing desired version $CABAL_VERSION"
-        ghcup rm cabal "$installed_cabal"
+        red "Currently cabal version $installed_cabal is installed,  installing desired version $CABAL_VERSION and setting it as default"
+        "$GHCUP_BINARY" set cabal "$CABAL_VERSION" >/dev/null 2>&1
         install_cabal
     else 
-        green "$(cabal --version | head -n1)"
+        green "$("$CABAL_BINARY" --version | head -n1)"
     fi 
 }
 
 install_cabal() {
     white "Installing cabal $CABAL_VERSION" 
-    ! type ghcup >/dev/null 2>&1 && install_ghcup
-    { ghcup install cabal --set "$CABAL_VERSION" && check_cabal; } || die "Failed installing cabal $CABAL_VERSION"
+    ! type "$GHCUP_BINARY" >/dev/null 2>&1 && install_ghcup; 
+    { 
+    "$GHCUP_BINARY" install cabal "$CABAL_VERSION" >/dev/null 2>&1
+    "$GHCUP_BINARY" set cabal "$CABAL_VERSION" >/dev/null 2>&1
+    check_cabal
+    } || die "Failed installing cabal $CABAL_VERSION"
     green "Installed cabal $CABAL_VERSION"
-    { white "Updating cabal" && cabal update; } || die "Updating cabal failed"
-    export PATH="$HOME/.cabal/bin:$HOME/.ghcup/bin:$PATH"
+    { white "Updating cabal" && cabal update >/dev/null 2>&1; } || die "Updating cabal failed"
+    export PATH="$USER_HOME/.cabal/bin:$USER_HOME/.ghcup/bin:$PATH"
     green "Updated cabal"
 }
 
@@ -373,10 +423,10 @@ configure_build() {
     white "Making sure correct build dependencies are available"
     { check_cabal && check_ghc; } || die "Failed making sure build dependencies are available"
     white "Updating cabal"
-    cabal update >/dev/null 2>&1 && green "Updated cabal"
-    [ -f "$PROJECT_FILE" ] && rm "$PROJECT_FILE"
+    "$CABAL_BINARY" update >/dev/null 2>&1 && green "Updated cabal"
+    [ -f "$PROJECT_FILE" ] && rm -rf "$PROJECT_FILE"
     white "Configuring the build options to build with GHC version $GHC_VERSION"
-    cabal configure --with-compiler=ghc-"$GHC_VERSION" || die "Failed configuring the build options"
+    "$CABAL_BINARY" configure --with-compiler=ghc-"$GHC_VERSION" || die "Failed configuring the build options"
     green "Configured build options"
 }
 
@@ -428,8 +478,8 @@ check_component() {
     white "Checking $1 installation"
     if ! [ -f "$2" ]; then 
         die "Failed installing $1"
-    elif [ "$($1 --version | awk '{print $2}'| head -n1)" = "$LATEST_VERSION" ]; then
-        $1 --version | head -n1 && green "Successfully installed $1 binary"
+    elif [ "$($2 --version | awk '{print $2}'| head -n1)" = "$LATEST_VERSION" ]; then
+        "$2" --version | head -n1 && green "Successfully installed $1 binary"
     else 
         die "Failed installing $1"
     fi
@@ -442,13 +492,26 @@ check_install() {
     green "Successfully installed cardano component binaries"
 }
 
+check_ownerships() {
+    if [ "$(id -u)" -eq 0 ]; then 
+        set_ownership "$WORK_DIR"
+        set_ownership "$NODE_BINARY"
+        set_ownership "$CLI_BINARY"
+    fi
+}
+
+set_ownership() {
+    chown -R "$RUNNER":"$RUNNER" "$1"
+}
+
 install_latest_node() {
     setup_packages
     prepare_build 
     build_latest_node 
     install_binaries 
     check_install
-    succeed "Successfully installed latest cardano node! :)" 
+    check_ownerships
+    succeed "Successfully installed latest cardano node! :)"
 }
 
 main() {
