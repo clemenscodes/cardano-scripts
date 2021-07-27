@@ -6,9 +6,9 @@ on:
     branches: [ main ]
   workflow_dispatch:
 jobs:
-  install-cardano-node:
+  install-and-run-cardano-node:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - name: Run the install script for a cardano node
+      - name: Run the install script for a cardano node and run it in mainnet afterwards
         run: src/run.sh -m -p

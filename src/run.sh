@@ -47,6 +47,10 @@ die() {
     red "$1" && exit 1
 }
 
+succeed() {
+    green "$1" && exit 0
+}
+
 help() {
     normal "Usage:   run.sh [ [ -t | -m ] | [ -h | -v ] ]"
     normal 
@@ -236,13 +240,14 @@ run() {
         HOST="127.0.0.1"
         PORT=1337
         TOPOLOGY="$CONFIG_DIR/$NETWORK/$NETWORK-topology.json"
-        cardano-node run \
+        { cardano-node run \
         --config "$CONFIG" \
         --database-path "$DB" \
         --socket-path "$SOCKET" \
         --host-addr $HOST \
         --port $PORT \
-        --topology "$TOPOLOGY" & PID=$! && sleep 30 && kill -HUP $PID
+        --topology "$TOPOLOGY" & PID=$! && sleep 15 && kill -HUP $PID; } || die "Failed running node"
+        succeed "Node started and killed successfully :P"
     fi
 }
 
