@@ -2,6 +2,7 @@
 
 CONFIRM=0
 SOURCE_REQUIRED=0
+VERBOSE=0
 RUNNER="${SUDO_USER:-$USER}"
 USER_HOME="/home/$RUNNER"
 WORK_DIR="$USER_HOME/.cardano"
@@ -54,8 +55,13 @@ EOF
 )"
 WHITE="\\033[1;37m"
 GREEN="\\033[0;32m"
+YELLOW="\\033[0;35m"
 RED="\\033[0;31m"
 SET="\\033[0m\\n"
+
+normal() {
+    printf "%s\n" "$1"
+}
 
 white() {
     printf "$WHITE%s$SET" "$1"
@@ -65,14 +71,13 @@ green() {
     printf "$GREEN%s$SET" "$1"
 }
 
+yellow() {
+    printf "$YELLOW%s$SET" "$1"
+}
+
 red() {
     printf "$RED%s$SET" "$1"
 }
-
-normal() {
-    printf "%s\n" "$1"
-}
-
 
 die() {
     red "$1" && exit 1
@@ -148,7 +153,7 @@ ask_change_shell_run_control() {
     while true; do
         [ -z "$MY_SHELL" ] && return 0
         green "Detected $MY_SHELL"
-        [ $CONFIRM ] && green "Automatically adding path variables to $SHELL_PROFILE_FILE" && return 1
+        [ $CONFIRM ] && return 1
         white "Do you want to automatically add the required PATH variables to $SHELL_PROFILE_FILE ?"
         white "[y] Yes (default) [n] No [?] Help"
         read -r answer
@@ -437,7 +442,11 @@ configure_build() {
     [ -f "$PROJECT_FILE" ] && rm -rf "$PROJECT_FILE"
     white "Configuring the build options to build with GHC version $GHC_VERSION"
     export PATH="$USER_HOME/.cabal/bin:$USER_HOME/.ghcup/bin:$PATH"
-    "$CABAL_BINARY" configure --with-compiler=ghc-"$GHC_VERSION" || die "Failed configuring the build options"
+    if [ $VERBOSE ]; then 
+        "$CABAL_BINARY" configure --with-compiler=ghc-"$GHC_VERSION" || die "Failed configuring the build options"
+    else 
+        "$CABAL_BINARY" configure --with-compiler=ghc-"$GHC_VERSION" >/dev/null 2>&1 || die "Failed configuring the build options"
+    fi    
     green "Configured build options"
 }
 
@@ -468,6 +477,11 @@ build_latest_node() {
     configure_build
     check_project_file
     green "Building and installing the node to produce executables binaries, this might take a while..."
+    if [ "$VERBOSE" ]; then 
+        cabal build all
+    else 
+        cabal build all >/dev/null 2>&1
+    fi 
     cabal build all
 }
 
@@ -531,20 +545,34 @@ check_required_sourcing() {
 }
 
 check_arguments() {
-    while getopts ':yhv' opt; do 
-        case "$opt" in
-            h) help && exit 0;;
-            v) version;;
-            y) confirm_prompts;;
-            \?) red "Invalid option: $OPTARG" && usage;;
-            *) usage 
-        esac
+    while [ "$#" -gt 0 ]; do
+    case $1 in
+        -y|--yes) confirm_prompts;;
+        -h|--help) help && exit 0 ;;
+        -v|--version) version;;
+        --verbose) verbose;;
+        *) red "Unknown parameter passed: $1" && usage ;;
+    esac
+    shift
     done
-    shift $((OPTIND -1))
 }
 
 confirm_prompts() {
-    { [ "$CONFIRM" = 0 ] && CONFIRM=true; } || die "Don't use optional flags multiple times"
+    if [ "$CONFIRM" = 0 ]; then 
+        yellow "Automatically adding path variables to $SHELL_PROFILE_FILE" && 
+        CONFIRM=true
+    else 
+        die "Don't use optional flags multiple times"
+    fi
+}
+
+verbose() {
+    if [ "$VERBOSE" = 0 ]; then 
+        yellow "Verbose mode selected"
+        VERBOSE=true
+    else 
+        die "Don't use optional flags multiple times"
+    fi
 }
 
 version() {
@@ -552,12 +580,15 @@ version() {
 }
 
 help() {
-    normal "Usage:   setup.sh [ [ -y ] | [ -h | -v ] ]          Install the latest cardano node version" A
+    normal "Usage:   setup.sh [ [ -y ] | [ -h | -v ] ] [ --verbose ]"
+    normal 
+    normal "This script installs the latest cardano node version"
     normal 
     normal "Available options"
-    normal "  -y, --yes                                         Add environment variables to PATH automatically"
-    normal "  -h, --help                                        Display this help message"
-    normal "  -v, --version                                     Display the latest cardano node version"
+    normal "  -y, --yes               Add environment variables to PATH automatically"
+    normal "  -h, --help              Display this help message"
+    normal "  -v, --version           Display the latest cardano node version"
+    normal "  --verbose               Show output from configuring build options and compiling the node."
 }
 
 usage() {
