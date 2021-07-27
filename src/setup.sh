@@ -445,7 +445,6 @@ configure_build() {
     white "Configuring the build options to build with GHC version $GHC_VERSION"
     export PATH="$USER_HOME/.cabal/bin:$USER_HOME/.ghcup/bin:$PATH"
     if [ "$VERBOSE" ]; then 
-        yellow "Verbose"
         "$CABAL_BINARY" configure --with-compiler=ghc-"$GHC_VERSION" || die "Failed configuring the build options"
     else 
         "$CABAL_BINARY" configure --with-compiler=ghc-"$GHC_VERSION" >/dev/null 2>&1 || die "Failed configuring the build options"
@@ -481,7 +480,6 @@ build_latest_node() {
     check_project_file
     green "Building and installing the node to produce executables binaries, this might take a while..."
     if [ "$VERBOSE" ]; then 
-        yellow "Verbose"
         cabal build all
     else 
         cabal build all >/dev/null 2>&1
