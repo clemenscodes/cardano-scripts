@@ -1,8 +1,5 @@
 #!/bin/sh
 
-CONFIRM=0
-SOURCE_REQUIRED=0
-VERBOSE=0
 RUNNER="${SUDO_USER:-$USER}"
 USER_HOME="/home/$RUNNER"
 WORK_DIR="$USER_HOME/.cardano"
@@ -158,7 +155,7 @@ ask_change_shell_run_control() {
     while true; do
         [ -z "$MY_SHELL" ] && return 0
         green "Detected $MY_SHELL"
-        [ $CONFIRM ] && purple "Automatically adding path variables to $SHELL_PROFILE_FILE" && return 1
+        [ "$CONFIRM" ] && purple "Automatically adding path variables to $SHELL_PROFILE_FILE" && return 1
         white "Do you want to automatically add the required PATH variables to $SHELL_PROFILE_FILE ?"
         white "[y] Yes (default) [n] No [?] Help"
         read -r answer
@@ -447,7 +444,8 @@ configure_build() {
     [ -f "$PROJECT_FILE" ] && rm -rf "$PROJECT_FILE"
     white "Configuring the build options to build with GHC version $GHC_VERSION"
     export PATH="$USER_HOME/.cabal/bin:$USER_HOME/.ghcup/bin:$PATH"
-    if [ $VERBOSE ]; then 
+    if [ "$VERBOSE" ]; then 
+        yellow "Verbose"
         "$CABAL_BINARY" configure --with-compiler=ghc-"$GHC_VERSION" || die "Failed configuring the build options"
     else 
         "$CABAL_BINARY" configure --with-compiler=ghc-"$GHC_VERSION" >/dev/null 2>&1 || die "Failed configuring the build options"
@@ -483,11 +481,11 @@ build_latest_node() {
     check_project_file
     green "Building and installing the node to produce executables binaries, this might take a while..."
     if [ "$VERBOSE" ]; then 
+        yellow "Verbose"
         cabal build all
     else 
         cabal build all >/dev/null 2>&1
     fi 
-    cabal build all
 }
 
 copy_binary() {
@@ -546,15 +544,15 @@ install_latest_node() {
 }
 
 check_required_sourcing() {
-    [ $SOURCE_REQUIRED ] && green "Source $SHELL_PROFILE_FILE or restart your terminal session to start using the binaries"
+    [ -z "$SOURCE_REQUIRED" ] && green "Source $SHELL_PROFILE_FILE or restart your terminal session to start using the binaries"
 }
 
 check_arguments() {
     while [ "$#" -gt 0 ]; do
     case $1 in
-        -y|--yes) confirm_prompts;;
         -h|--help) help && exit 0 ;;
         -v|--version) version;;
+        -y|--yes) confirm_prompts;;
         --verbose) verbose;;
         *) red "Unknown parameter passed: $1" && usage ;;
     esac
@@ -563,7 +561,7 @@ check_arguments() {
 }
 
 confirm_prompts() {
-    if [ "$CONFIRM" = 0 ]; then 
+    if [ -z "$CONFIRM" ]; then 
         CONFIRM=true
     else 
         die "Don't use optional flags multiple times"
@@ -571,7 +569,7 @@ confirm_prompts() {
 }
 
 verbose() {
-    if [ "$VERBOSE" = 0 ]; then 
+    if [ -z "$VERBOSE" ]; then 
         yellow "Verbose mode selected"
         VERBOSE=true
     else 

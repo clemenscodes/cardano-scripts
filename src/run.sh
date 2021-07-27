@@ -1,115 +1,229 @@
 #!/bin/sh
 
-workdir="$HOME/.cardano"
+unset NETWORK
 
-green() {
-    printf "\\033[0;32m%s\\033[0m\\n" "$1"
-}
+RUNNER="${SUDO_USER:-$USER}"
+USER_HOME="/home/$RUNNER"
+WORK_DIR="$USER_HOME/.cardano"
+IPC_DIR="$WORK_DIR/ipc"
+CONFIG_DIR="$WORK_DIR/config"
+DATA_DIR="$WORK_DIR/data/db"
+CONFIG_BASE_URL="https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1"
+RELEASE_URL="https://api.github.com/repos/input-output-hk/cardano-node/releases/latest"
+LATEST_VERSION="$(curl -s "$RELEASE_URL" | grep tag_name | awk -F ':' '{print $2}' | tr -d '"' | tr -d ',' | tr -d '[:space:]')"
+NODE_INSTALL_URL="https://cardano-scripts.web.app/"
+WHITE="\\033[1;37m"
+GREEN="\\033[0;32m"
+YELLOW="\\033[0;33m"
+RED="\\033[0;31m"
+PURPLE="\\033[0;35m"
+SET="\\033[0m\\n"
 
-red() {
-    printf "\\033[0;31m%s\\033[0m\\n" "$1"
+normal() {
+    printf "%s\n" "$1"
 }
 
 white() {
-    printf "\033[1;37m%s\\033[0m\\n" "$1"
+    printf "$WHITE%s$SET" "$1"
 }
 
-install_cardano_node() {
-    ./install_latest_node.sh
+green() {
+    printf "$GREEN%s$SET" "$1"
 }
 
-check_for_installed_cardano_node() {
-    white "Checking for installed executable of cardano-node"
-    if ! type cardano-node >/dev/null 2>&1
-        then 
-        red "No cardano-node executable found"
-        install_cardano_node
+yellow() {
+    printf "$YELLOW%s$SET" "$1"
+}
+
+red() {
+    printf "$RED%s$SET" "$1"
+}
+
+purple() {
+    printf "$PURPLE%s$SET" "$1"
+}
+
+die() {
+    red "$1" && exit 1
+}
+
+help() {
+    normal "Usage:   run.sh [ [ -t | -m ] | [ -h | -v ] ]"
+    normal 
+    normal "This script runs the latest cardano node version"
+    normal 
+    normal "Available options"
+    normal "  -t, --testnet           Runs the node in testnet"
+    normal "  -m, --mainnet           Runs the node in mainnet"
+    normal "  -h, --help              Display this help message"
+    normal "  -v, --version           Display the latest cardano node version"
+}
+
+usage() {
+    help && exit 1
+}
+
+check_arguments() {
+    while [ "$#" -gt 0 ]; do
+    case $1 in
+        -h|--help) help && exit 0 ;;
+        -v|--version) version;;
+        -m|--mainnet) mainnet;;
+        -t|--testnet) testnet;;
+        *) red "Unknown parameter passed: $1" && usage ;;
+    esac
+    shift
+    done
+}
+
+mainnet() {
+    if [ -z "$NETWORK" ]; then 
+        NETWORK="mainnet"
+    else 
+        red "Don't use optional flags multiple times" && usage
     fi
 }
 
-ask_network() {
+testnet() {
+    if [ -z "$NETWORK" ]; then 
+        NETWORK="testnet"
+    else 
+        red "Don't use optional flags multiple times" && usage
+    fi
+}
+
+version() {
+    normal "$LATEST_VERSION" && exit 0 
+}
+
+check_directory() {
+    white "Checking for $1 directory in $2"
+    { ! [ -d "$2" ] && create_directory "$1" "$2"; } || green "$2 directory found, skipped creating"
+}
+
+create_directory() {
+    white "Creating directory $1 in $2"
+    mkdir -p "$2" || die "Failed creating $1 directory in $2"
+    green "Created $1 directory"
+}
+
+change_directory() {
+    white "Changing directory to $1"
+    cd "$1" || die "Failed changing directory to $1"
+    green "Successfully changed directory to $1"
+}
+
+check_version() {
+    [ -z "$LATEST_VERSION" ] && red "Couldn't fetch latest node version, try again after making sure you have curl installed" && exit 1
+    if type cardano-node >/dev/null 2>&1; then 
+        installed_cardano_node_version=$(cardano-node --version | awk '{print $2}'| head -n1)
+        if [ "$installed_cardano_node_version" = "$LATEST_VERSION" ]; then 
+            purple "Latest cardano-node binary is installed (v$LATEST_VERSION)" && return 0;
+        else 
+            yellow "Updating cardano-node version $installed_cardano_node_version to version $LATEST_VERSION"
+            install_node || die "Failed updating node to $LATEST_VERSION"
+        fi
+    else 
+        install_node || die "Failed updating node to $LATEST_VERSION"
+    fi 
+}
+
+install_node() {
+    ({
+    white "Installing latest cardano node"
+    export CONFIRM=true
+    export VERBOSE=true
+    curl --proto '=https' --tlsv1.2 -sSf "$NODE_INSTALL_URL" | sh # >/dev/null 2>&1
+    } || die "Failed installing latest cardano node")
+}
+
+check_network() {
+    [ -z "$NETWORK" ] || { purple "Selected $NETWORK network" && return 0; }
     while true; do
-        white "[M] Mainnet [T] Testnet [?] Help (Default is T)"
-        read -r network
-		case $network in
+        white "[t] Testnet [m] Mainnet [?] Help (Default is t)"
+        read -r NETWORK 
+		case $NETWORK in
 			[Tt]* | "") 
                 white "Proceeding to run a testnet node"
-                network="testnet"
+                NETWORK="testnet"
                 return 0;;
 			[Mm]*)
                 white "Proceeding to run a mainnet node"
-                network="mainnet"
+                NETWORK="mainnet"
                 return 0;;
 			*)
 				white "Possible choices are:"
-				white "M - Mainnet (default)"
-				white "T - Testnet"
+				white "t - Testnet (default)"
+				white "m - Mainnet"
 				white "Please make your choice and press ENTER." ;;
 		esac
 	done
-	unset network
 }
 
-get_mainnet_config_files() {
-    green "Fetching cardano blockchain mainnet network configuration files"
-    mkdir -p "$workdir"/config/mainnet 
-    cd "$workdir"/config/mainnet || exit
-    wget https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/mainnet-config.json > /dev/null 2>&1 &&
-    wget https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/mainnet-byron-genesis.json > /dev/null 2>&1 &&
-    wget https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/mainnet-shelley-genesis.json > /dev/null 2>&1 &&
-    wget https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/mainnet-topology.json > /dev/null 2>&1 && 
-    wget https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/mainnet-alonzo-genesis.json > /dev/null 2>&1
+check_config() {
+    white "Checking for $NETWORK config files"
+    check_directory "config" "$CONFIG_DIR"
+    check_directory "$NETWORK" "$CONFIG_DIR/$NETWORK"
+    check_config_files "$NETWORK" "$CONFIG_DIR/$NETWORK"
 }
 
-get_testnet_config_files() {
-    green "Fetching cardano blockchain testnet network configuration files"
-    mkdir -p "$workdir"/config/testnet
-    cd "$workdir"/config/testnet|| exit
-    wget https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/testnet-config.json > /dev/null 2>&1 &&
-    wget https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/testnet-byron-genesis.json > /dev/null 2>&1 &&
-    wget https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/testnet-shelley-genesis.json > /dev/null 2>&1 &&
-    wget https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/testnet-topology.json > /dev/null 2>&1 && 
-    wget https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1/testnet-alonzo-genesis.json > /dev/null 2>&1
+check_config_files() {
+    green "Checking cardano $1 configuration files"
+    check_directory "$1" "$2"
+    change_directory "$2"
+    check_file "$1" "config"
+    check_file "$1" "byron-genesis"
+    check_file "$1" "shelley-genesis"
+    check_file "$1" "alonzo-genesis"
+    check_file "$1" "topology"
 }
 
-check_for_config_files() {
-    white "Checking for config files"
-    if ! [ -d "$workdir"/config ]; then
-        red "No config files found"
-        get_mainnet_config_files
-        get_testnet_config_files
-    elif ! [ -d "$workdir/config/mainnet" ]; then
-        get_mainnet_config_files
-    elif ! [ -d "$workdir/config/testnet" ]; then
-        get_testnet_config_files
-   fi
+check_file() {
+    if ! [ -f "$CONFIG_DIR/$NETWORK/${1}-${2}.json" ]; then
+        red "${1}-${2}.json file not found, fetching it"
+        wget "$CONFIG_BASE_URL/${1}-${2}.json" >/dev/null 2>&1 || die "Failed fetching ${1}-${2}.json file"
+        green "Fetched ${1}-${2}.json file successfully"
+    else 
+        green "${1}-${2}.json file found"
+    fi
 }
 
-run_cardano_node() {
-    green "Preparing to run cardano node"
-    ask_network
-    config="$workdir/config/$network/$network-config.json"
-    db="$workdir/data/db/$network"
-    socket="$workdir/ipc/node.socket"
-    host="127.0.0.1"
-    port=1337
-    topology="$workdir/config/$network/$network-topology.json"
-    green "Running Cardano Node"
+check_ownerships() {
+    if [ "$(id -u)" -eq 0 ]; then 
+        set_ownership "$CONFIG_DIR"
+    fi
+}
+
+set_ownership() {
+    chown -R "$RUNNER":"$RUNNER" "$1"
+}
+
+run() {
+    green "Preparing to run node"
+    [ -z "$NETWORK" ] && ask_network
+    CONFIG="$CONFIG_DIR/$NETWORK/$NETWORK-config.json"
+    DB="$DATA_DIR/$NETWORK"
+    SOCKET="$IPC_DIR/node.socket"
+    HOST="127.0.0.1"
+    PORT=1337
+    TOPOLOGY="$WORK_DIR/config/$NETWORK/$NETWORK-topology.json"
+    green "Running node in $NETWORK"
     cardano-node run \
-    --config "$config" \
-    --database-path "$db" \
-    --socket-path "$socket" \
-    --host-addr $host \
-    --port $port \
-    --topology "$topology"
+    --config "$CONFIG" \
+    --database-path "$DB" \
+    --socket-path "$SOCKET" \
+    --host-addr $HOST \
+    --port $PORT \
+    --topology "$TOPOLOGY"
 }
-
 
 main() {
-    white "This script runs a cardano node and installs the node if not installed"
-    check_for_installed_cardano_node
-    check_for_config_files
-    run_cardano_node
+    check_arguments "$@"
+    check_version
+    check_network
+    check_config
+    check_ownerships
+    run
 }
 
-main
+main "$@"
