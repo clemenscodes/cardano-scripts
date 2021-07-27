@@ -11,4 +11,4 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - name: Run the install script for a cardano node
-        run: src/setup.sh -y
+        run: src/setup.sh -y --verbose
