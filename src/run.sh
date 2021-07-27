@@ -55,6 +55,7 @@ help() {
     normal "Available options"
     normal "  -t, --testnet           Runs the node in testnet"
     normal "  -m, --mainnet           Runs the node in mainnet"
+    normal "  -p, --pipeline          Runs the node for 30 seconds and then kills the process"
     normal "  -h, --help              Display this help message"
     normal "  -v, --version           Display the latest cardano node version"
 }
@@ -68,12 +69,22 @@ check_arguments() {
     case $1 in
         -h|--help) help && exit 0 ;;
         -v|--version) version;;
+        -p|--pipeline) version;;
         -m|--mainnet) mainnet;;
         -t|--testnet) testnet;;
         *) red "Unknown parameter passed: $1" && usage ;;
     esac
     shift
     done
+}
+
+pipeline() {
+    
+     if [ -z "$PIPELINE" ]; then 
+        PIPELINE=true
+    else 
+        red "Don't use optional flags multiple times" && usage
+    fi
 }
 
 mainnet() {
@@ -131,7 +142,7 @@ check_version() {
 install_node() {
     ({
     white "Installing latest cardano node"
-    export CONFIRM=true
+    export CONFIRM=true 
     export VERBOSE=true
     curl --proto '=https' --tlsv1.2 -sSf "$NODE_INSTALL_URL" | sh # >/dev/null 2>&1
     } || die "Failed installing latest cardano node")
@@ -191,6 +202,8 @@ check_file() {
 check_ownerships() {
     if [ "$(id -u)" -eq 0 ]; then 
         set_ownership "$CONFIG_DIR"
+        set_ownership "$DATA_DIR"
+        set_ownership "$SOCKET"
     fi
 }
 
@@ -198,23 +211,31 @@ set_ownership() {
     chown -R "$RUNNER":"$RUNNER" "$1"
 }
 
-run() {
-    green "Preparing to run node"
-    [ -z "$NETWORK" ] && ask_network
+node_run() {
     CONFIG="$CONFIG_DIR/$NETWORK/$NETWORK-config.json"
     DB="$DATA_DIR/$NETWORK"
     SOCKET="$IPC_DIR/node.socket"
     HOST="127.0.0.1"
     PORT=1337
-    TOPOLOGY="$WORK_DIR/config/$NETWORK/$NETWORK-topology.json"
-    green "Running node in $NETWORK"
+    TOPOLOGY="$CONFIG_DIR/$NETWORK/$NETWORK-topology.json"
     cardano-node run \
     --config "$CONFIG" \
     --database-path "$DB" \
     --socket-path "$SOCKET" \
     --host-addr $HOST \
     --port $PORT \
-    --topology "$TOPOLOGY"
+    --topology "$TOPOLOGY" 
+}
+
+run() {
+    green "Preparing to run node"
+    [ -z "$NETWORK" ] && ask_network
+    green "Running node in $NETWORK"
+    if [ -z "$PIPELINE" ]; then
+        node_run
+    else
+        node_run & PID=$! && sleep 30 && kill -HUP $PID
+    fi
 }
 
 main() {
