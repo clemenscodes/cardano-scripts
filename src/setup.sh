@@ -4,9 +4,11 @@ RUNNER="${SUDO_USER:-$USER}"
 USER_HOME="/home/$RUNNER"
 WORK_DIR="$USER_HOME/.cardano"
 CARDANO_NODE_DIR="$WORK_DIR/cardano-node"
-BIN_PATH="$CARDANO_NODE_DIR/scripts/bin-path.sh"
 CARDANO_DB_SYNC_DIR="$WORK_DIR/cardano-db-sync"
+CARDANO_WALLET_DIR="$WORK_DIR/cardano-wallet"
+BIN_PATH="$CARDANO_NODE_DIR/scripts/bin-path.sh"
 PROJECT_FILE="$CARDANO_NODE_DIR/cabal.project.local"
+WALLET_PROJECT_FILE="$CARDANO_WALLET_DIR/cabal.project.local"
 INSTALL_DIR="$USER_HOME/.local/bin"
 IPC_DIR="$WORK_DIR/ipc"
 CONFIG_DIR="$WORK_DIR/config"
@@ -20,6 +22,7 @@ GHC_BINARY="$GHCUP_INSTALL_PATH/bin/ghc"
 CABAL_BINARY="$GHCUP_INSTALL_PATH/bin/cabal"
 CLI_BINARY="$INSTALL_DIR/cardano-cli"
 NODE_BINARY="$INSTALL_DIR/cardano-node"
+WALLET_BINARY="$INSTALL_DIR/cardano-wallet"
 GHC_VERSION="8.10.4"
 CABAL_VERSION="3.4.0.0"
 PLATFORM="$(uname -s)"
@@ -27,9 +30,18 @@ DISTRO="$(cat /etc/*ease | grep "DISTRIB_ID" | awk -F '=' '{print $2}')"
 RELEASE_URL="https://api.github.com/repos/input-output-hk/cardano-node/releases/latest"
 CARDANO_NODE_URL="https://github.com/input-output-hk/cardano-node.git"
 CARDANO_DB_SYNC_URL="https://github.com/input-output-hk/cardano-db-sync.git"
+CARDANO_WALLET_URL="https://github.com/input-output-hk/cardano-wallet.git"
+WALLET_RELEASE_URL="https://api.github.com/repos/input-output-hk/cardano-wallet/releases/latest"
 LIBSODIUM_URL="https://github.com/input-output-hk/libsodium"
 GHCUP_INSTALL_URL="https://get-ghcup.haskell.org"
 LATEST_VERSION="$(curl -s "$RELEASE_URL" | grep tag_name | awk -F ':' '{print $2}' | tr -d '"' | tr -d ',' | tr -d '[:space:]')"
+LATEST_WALLET_VERSION="$(curl -s "$WALLET_RELEASE_URL" | grep tag_name | awk -F ':' '{print $2}' | tr -d '"' | tr -d ',' | tr -d '[:space:]')"
+WALLET_VERSION_PRE_PROCESSED="$(echo "$LATEST_WALLET_VERSION" | tr -d 'v'| tr '-' '.')"
+WALLET_YEAR="$(echo "$WALLET_VERSION_PRE_PROCESSED" | awk -F '.' '{print $1}')"
+WALLET_MONTH="$(echo "$WALLET_VERSION_PRE_PROCESSED" | awk -F '.' '{print $2}'| tr -d '0')"
+WALLET_DAYS="$(echo "$WALLET_VERSION_PRE_PROCESSED" | awk -F '.' '{print $3}')"
+WALLET_VERSION="$WALLET_YEAR.$WALLET_MONTH.$WALLET_DAYS"
+WALLET_BIN_PATH="$CARDANO_WALLET_DIR/dist-newstyle/build/x86_64-linux/ghc-$GHC_VERSION/cardano-wallet-$WALLET_VERSION/x/cardano-wallet/build/cardano-wallet/cardano-wallet"
 LD_LIBRARY="$(cat << 'EOF'
 export LD_LIBRARY_PATH="/usr/local/lib:$LD_LIBRARY_PATH"             
 EOF
@@ -396,6 +408,14 @@ install_libsodium() {
     green "Successfully installed libsodium"
 }
 
+clone_repositories() {
+    white "Downloading cardano repositories"
+    change_directory "$WORK_DIR"
+    check_repository "$CARDANO_NODE_DIR" "$CARDANO_NODE_URL" "cardano-node"
+    check_repository "$CARDANO_DB_SYNC_DIR" "$CARDANO_DB_SYNC_URL" "cardano-db-sync"
+    check_repository "$CARDANO_WALLET_DIR" "$CARDANO_WALLET_URL" "cardano-wallet"
+}
+
 check_repository() {
     if [ -d "$1" ]; then
         white "$1 directory found, checking for git repository"
@@ -416,40 +436,56 @@ check_repository() {
     fi 
 }
 
-clone_repositories() {
-    white "Downloading cardano repositories"
-    change_directory "$WORK_DIR"
-    check_repository "$CARDANO_NODE_DIR" "$CARDANO_NODE_URL" "cardano-node"
-    check_repository "$CARDANO_DB_SYNC_DIR" "$CARDANO_DB_SYNC_URL" "cardano-db-sync"
-}
-
 clone_repository() {
     white "Cloning $3 repository to $2"
     git clone "$1" "$2" >/dev/null 2>&1 || die "Failed cloning $3 repository to $2"
     green "Successfully cloned $3 repository to $2"
 }
 
-checkout_latest_version() {
+checkout_latest_node_version() {
     white "Checking out latest node version"
     change_directory "$CARDANO_NODE_DIR"
     git checkout tags/"$LATEST_VERSION" >/dev/null 2>&1 || die "Failed checking out version $LATEST_VERSION"
     green "Successfully checked out latest node version $LATEST_VERSION"
 }
 
-configure_build() {
-    white "Making sure correct build dependencies are available"
-    { check_cabal && check_ghc; } || die "Failed making sure build dependencies are available"
+checkout_latest_wallet_version() {
+    white "Checking out latest wallet version"
+    change_directory "$CARDANO_WALLET_DIR"
+    git checkout tags/"$LATEST_WALLET_VERSION" >/dev/null 2>&1 || die "Failed checking out wallet version $LATEST_WALLET_VERSION"
+    green "Successfully checked out latest wallet version $LATEST_WALLET_VERSION"
+}
+
+configure_node_build() {
+    white "Making sure correct node build dependencies are available"
+    { check_cabal && check_ghc; } || die "Failed making sure node build dependencies are available"
     white "Updating cabal"
     "$CABAL_BINARY" update >/dev/null 2>&1 && green "Updated cabal"
     [ -f "$PROJECT_FILE" ] && rm -rf "$PROJECT_FILE"
-    white "Configuring the build options to build with GHC version $GHC_VERSION"
+    white "Configuring the node build options to build with GHC version $GHC_VERSION"
     export PATH="$USER_HOME/.cabal/bin:$USER_HOME/.ghcup/bin:$PATH"
     if [ "$VERBOSE" ]; then 
-        "$CABAL_BINARY" configure --with-compiler=ghc-"$GHC_VERSION" || die "Failed configuring the build options"
+        "$CABAL_BINARY" configure --with-compiler=ghc-"$GHC_VERSION" || die "Failed configuring the node build options"
     else 
-        "$CABAL_BINARY" configure --with-compiler=ghc-"$GHC_VERSION" >/dev/null 2>&1 || die "Failed configuring the build options"
+        "$CABAL_BINARY" configure --with-compiler=ghc-"$GHC_VERSION" >/dev/null 2>&1 || die "Failed configuring the node build options"
     fi    
-    green "Configured build options"
+    green "Configured node build options"
+}
+
+configure_wallet_build() {
+    white "Making sure correct wallet build dependencies are available"
+    { check_cabal && check_ghc; } || die "Failed making sure wallet build dependencies are available"
+    white "Updating cabal"
+    "$CABAL_BINARY" update >/dev/null 2>&1 && green "Updated cabal"
+    [ -f "$WALLET_PROJECT_FILE" ] && rm -rf "$WALLET_PROJECT_FILE"
+    white "Configuring the wallet build options to build with GHC version $GHC_VERSION"
+    export PATH="$USER_HOME/.cabal/bin:$USER_HOME/.ghcup/bin:$PATH"
+    if [ "$VERBOSE" ]; then 
+        "$CABAL_BINARY" configure --with-compiler=ghc-"$GHC_VERSION" --constraint="random<1.2" || die "Failed configuring the wallet build options"
+    else 
+        "$CABAL_BINARY" configure --with-compiler=ghc-"$GHC_VERSION" --constraint="random<1.2" >/dev/null 2>&1 || die "Failed configuring the wallet build options"
+    fi    
+    green "Configured wallet build options"
 }
 
 check_project_file() {
@@ -472,13 +508,25 @@ update_project_file() {
     green "Updated local project file"
 }
 
+
 build_latest_node() {
     white "Start building latest cardano-node"
-    clone_repositories
-    checkout_latest_version
-    configure_build
+    checkout_latest_node_version
+    configure_node_build
     check_project_file
     green "Building and installing the node to produce executables binaries, this might take a while..."
+    if [ "$VERBOSE" ]; then 
+        cabal build all
+    else 
+        cabal build all >/dev/null 2>&1
+    fi 
+}
+
+build_latest_wallet() {
+    white "Start building latest cardano-wallet"
+    checkout_latest_wallet_version
+    configure_wallet_build
+    green "Building and installing the the to produce an executable binary, this might take a while..."
     if [ "$VERBOSE" ]; then 
         cabal build all
     else 
@@ -492,11 +540,19 @@ copy_binary() {
     green "Successfully copied $1 binary to $INSTALL_DIR"
 }
 
+copy_wallet_binary() {
+    white "Copying wallet binary to $INSTALL_DIR"
+    cp -p "$WALLET_BIN_PATH" "$INSTALL_DIR" || die "Failed copying wallet binary to $INSTALL_DIR"
+    green "Successfully copied wallet binary to $INSTALL_DIR"
+}
+
 install_binaries() {
     check_directory "binary install" "$INSTALL_DIR"
     white "Installing the binaries to $INSTALL_DIR"
+    change_directory "$CARDANO_NODE_DIR"
     copy_binary "cardano-node"
     copy_binary "cardano-cli"
+    copy_wallet_binary
     green "Successfully copied binaries to $INSTALL_DIR"
 }
 
@@ -511,10 +567,22 @@ check_component() {
     fi
 }
 
+check_wallet_installation() {
+    white "Checking cardano-wallet installation"
+    if ! [ -f "$WALLET_BINARY" ]; then 
+        die "Failed installing cardano-wallet"
+    elif [ "$(cardano-wallet version | awk '{print $1}')" = "$LATEST_WALLET_VERSION" ]; then
+        cardano-wallet version && green "Successfully installed cardano-wallet binary"
+    else 
+        die "Failed installing cardano-wallet"
+    fi
+}
+
 check_install() {
     white "Checking cardano component binary installatin"
     check_component "cardano-node" "$NODE_BINARY" 
     check_component "cardano-cli" "$CLI_BINARY" 
+    check_wallet_installation
     green "Successfully installed cardano component binaries"
 }
 
@@ -523,6 +591,7 @@ check_ownerships() {
         set_ownership "$WORK_DIR"
         set_ownership "$NODE_BINARY"
         set_ownership "$CLI_BINARY"
+        set_ownership "$WALLET_BINARY"
     fi
 }
 
@@ -533,7 +602,9 @@ set_ownership() {
 install_latest_node() {
     setup_packages
     prepare_build 
+    clone_repositories
     build_latest_node 
+    build_latest_wallet
     install_binaries 
     check_install
     check_ownerships
