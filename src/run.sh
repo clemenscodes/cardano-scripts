@@ -69,7 +69,7 @@ check_arguments() {
     case $1 in
         -h|--help) help && exit 0 ;;
         -v|--version) version;;
-        -p|--pipeline) version;;
+        -p|--pipeline) pipeline;;
         -m|--mainnet) mainnet;;
         -t|--testnet) testnet;;
         *) red "Unknown parameter passed: $1" && usage ;;
@@ -79,8 +79,7 @@ check_arguments() {
 }
 
 pipeline() {
-    
-     if [ -z "$PIPELINE" ]; then 
+    if [ -z "$PIPELINE" ]; then 
         PIPELINE=true
     else 
         red "Don't use optional flags multiple times" && usage
