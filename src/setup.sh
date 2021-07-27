@@ -55,8 +55,9 @@ EOF
 )"
 WHITE="\\033[1;37m"
 GREEN="\\033[0;32m"
-YELLOW="\\033[0;35m"
+YELLOW="\\033[0;33m"
 RED="\\033[0;31m"
+PURPLE="\\033[0;35m"
 SET="\\033[0m\\n"
 
 normal() {
@@ -77,6 +78,10 @@ yellow() {
 
 red() {
     printf "$RED%s$SET" "$1"
+}
+
+purple() {
+    printf "$PURPLE%s$SET" "$1"
 }
 
 die() {
@@ -153,7 +158,7 @@ ask_change_shell_run_control() {
     while true; do
         [ -z "$MY_SHELL" ] && return 0
         green "Detected $MY_SHELL"
-        [ $CONFIRM ] && return 1
+        [ $CONFIRM ] && purple "Automatically adding path variables to $SHELL_PROFILE_FILE" && return 1
         white "Do you want to automatically add the required PATH variables to $SHELL_PROFILE_FILE ?"
         white "[y] Yes (default) [n] No [?] Help"
         read -r answer
@@ -252,7 +257,7 @@ check_package() {
 
 install_package() {
     red "$2 is not installed"
-    white "Installing $2"  
+    white "Installing $2"
     sudo "$1" install "$2" >/dev/null 2>&1 || red "Failed installing $2"
     green "Installed $2"
 }
@@ -559,7 +564,6 @@ check_arguments() {
 
 confirm_prompts() {
     if [ "$CONFIRM" = 0 ]; then 
-        yellow "Automatically adding path variables to $SHELL_PROFILE_FILE" && 
         CONFIRM=true
     else 
         die "Don't use optional flags multiple times"
