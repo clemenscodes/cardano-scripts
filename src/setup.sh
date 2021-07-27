@@ -531,33 +531,37 @@ check_required_sourcing() {
 }
 
 check_arguments() {
-    while getopts ':yvh' opt; do 
+    while getopts ':yhv' opt; do 
         case "$opt" in
-            h) help;;
+            h) help && exit 0;;
             v) version;;
             y) confirm_prompts;;
-            *) help
+            \?) red "Invalid option: $OPTARG" && usage;;
+            *) usage 
         esac
     done
     shift $((OPTIND -1))
 }
 
 confirm_prompts() {
-    { [ $CONFIRM = 0 ] && CONFIRM=true; } || die "More than one -y flag has been specified"
+    { [ "$CONFIRM" = 0 ] && CONFIRM=true; } || die "Don't use optional flags multiple times"
 }
 
 version() {
-    normal "$LATEST_VERSION" && exit 0
+    normal "$LATEST_VERSION" && exit 0 
 }
 
 help() {
-    normal "Usage:   setup.sh [ OPTIONS ]          Install the latest cardano node version" 
+    normal "Usage:   setup.sh [ [ -y ] | [ -h | -v ] ]          Install the latest cardano node version" A
     normal 
     normal "Available options"
-    normal "  -h, --help                           Display this help message."
-    normal "  -y, --yes                            Add environment variables to PATH automatically."
-    normal "  -v, --version                        Display the latest cardano node version."
-    exit 0
+    normal "  -y, --yes                                         Add environment variables to PATH automatically"
+    normal "  -h, --help                                        Display this help message"
+    normal "  -v, --version                                     Display the latest cardano node version"
+}
+
+usage() {
+    help && exit 1
 }
 
 main() {
