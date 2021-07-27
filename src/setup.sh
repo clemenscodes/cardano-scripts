@@ -1,5 +1,7 @@
 #!/bin/sh
 
+CONFIRM=0
+SOURCE_REQUIRED=0
 RUNNER="${SUDO_USER:-$USER}"
 USER_HOME="/home/$RUNNER"
 WORK_DIR="$USER_HOME/.cardano"
@@ -66,6 +68,11 @@ green() {
 red() {
     printf "$RED%s$SET" "$1"
 }
+
+normal() {
+    printf "%s\n" "$1"
+}
+
 
 die() {
     red "$1" && exit 1
@@ -141,6 +148,7 @@ ask_change_shell_run_control() {
     while true; do
         [ -z "$MY_SHELL" ] && return 0
         green "Detected $MY_SHELL"
+        [ $CONFIRM ] && green "Automatically adding path variables to $SHELL_PROFILE_FILE" && return 1
         white "Do you want to automatically add the required PATH variables to $SHELL_PROFILE_FILE ?"
         white "[y] Yes (default) [n] No [?] Help"
         read -r answer
@@ -163,6 +171,7 @@ check_env() {
         green "$3 is already set"
     else 
         echo "$2" >> "$SHELL_PROFILE_FILE"
+        SOURCE_REQUIRED=true
         green "Set $3 in $SHELL_PROFILE_FILE"
     fi
 }
@@ -170,10 +179,10 @@ check_env() {
 change_shell_run_control() {
     case "$1" in
         1)
-            check_env "LD_LIBRARY_PATH" "$LD_LIBRARY" "Libsodium library path"
-            check_env "PKG_CONFIG_PATH" "$PKG_CONFIG" "Libsodium package configuration path"
-            check_env "CARDANO_NODE_SOCKET_PATH" "$CARDANO_NODE_SOCKET" "Socket for inter-process-communication"
-            check_env "\.local/bin" "$INSTALL_PATH" "Cardano binary installation path"
+            check_env "LD_LIBRARY_PATH" "$LD_LIBRARY" "libsodium library path"
+            check_env "PKG_CONFIG_PATH" "$PKG_CONFIG" "libsodium package configuration path"
+            check_env "CARDANO_NODE_SOCKET_PATH" "$CARDANO_NODE_SOCKET" "socket for inter-process-communication"
+            check_env "\.local/bin" "$INSTALL_PATH" "cardano binary installation path"
             check_env "\.ghcup/bin" "$GHCUP_PATH" "GHCup installation path";;
         *) 
             white "Exporting variables"
@@ -307,7 +316,6 @@ check_ghc() {
         installed_ghc=$("$GHC_BINARY" --version | awk '{print $8}')
         red "Currently GHC $installed_ghc is installed, installing desired version $GHC_VERSION and setting it as default"
         install_ghc 
-        "$GHCUP_BINARY" set "$installed_ghc" >/dev/null 2>&1 
         white "$("$GHC_BINARY" --version)"
     else 
         green "$("$GHC_BINARY" --version)"
@@ -320,6 +328,7 @@ install_ghc() {
     {
     "$GHCUP_BINARY" install ghc "$GHC_VERSION" >/dev/null 2>&1 && 
     "$GHCUP_BINARY" set "$GHC_VERSION" >/dev/null 2>&1 &&
+    export PATH="$USER_HOME/.cabal/bin:$USER_HOME/.ghcup/bin:$PATH" &&
     check_ghc
     } || die "Failed installing GHC"
     export PATH="$USER_HOME/.cabal/bin:$USER_HOME/.ghcup/bin:$PATH"
@@ -331,9 +340,9 @@ check_cabal() {
     if ! type "$CABAL_BINARY" > /dev/null 2>&1; then 
         install_cabal  
     elif [ "$("$CABAL_BINARY" --version | head -n1 | awk '{print $3}')" != "$CABAL_VERSION" ]; then
+        export PATH="$USER_HOME/.cabal/bin:$USER_HOME/.ghcup/bin:$PATH"
         installed_cabal=$(cabal --version | head -n1 | awk '{print $3}')
-        red "Currently cabal version $installed_cabal is installed,  installing desired version $CABAL_VERSION and setting it as default"
-        "$GHCUP_BINARY" set cabal "$CABAL_VERSION" >/dev/null 2>&1
+        red "Currently cabal version $installed_cabal is installed, installing desired version $CABAL_VERSION and setting it as default"
         install_cabal
     else 
         green "$("$CABAL_BINARY" --version | head -n1)"
@@ -344,8 +353,9 @@ install_cabal() {
     white "Installing cabal $CABAL_VERSION" 
     ! type "$GHCUP_BINARY" >/dev/null 2>&1 && install_ghcup; 
     { 
-    "$GHCUP_BINARY" install cabal "$CABAL_VERSION" >/dev/null 2>&1
-    "$GHCUP_BINARY" set cabal "$CABAL_VERSION" >/dev/null 2>&1
+    "$GHCUP_BINARY" install cabal "$CABAL_VERSION" >/dev/null 2>&1 &&
+    "$GHCUP_BINARY" set cabal "$CABAL_VERSION" >/dev/null 2>&1 &&
+    export PATH="$USER_HOME/.cabal/bin:$USER_HOME/.ghcup/bin:$PATH" &&
     check_cabal
     } || die "Failed installing cabal $CABAL_VERSION"
     green "Installed cabal $CABAL_VERSION"
@@ -399,17 +409,17 @@ check_repository() {
     fi 
 }
 
-clone_repository() {
-    white "Cloning $3 repository to $2"
-    git clone "$1" "$2" >/dev/null 2>&1 || die "Failed cloning $3 repository to $2"
-    green "Successfully cloned $3 repository to $2"
-}
-
 clone_repositories() {
     white "Downloading cardano repositories"
     change_directory "$WORK_DIR"
     check_repository "$CARDANO_NODE_DIR" "$CARDANO_NODE_URL" "cardano-node"
     check_repository "$CARDANO_DB_SYNC_DIR" "$CARDANO_DB_SYNC_URL" "cardano-db-sync"
+}
+
+clone_repository() {
+    white "Cloning $3 repository to $2"
+    git clone "$1" "$2" >/dev/null 2>&1 || die "Failed cloning $3 repository to $2"
+    green "Successfully cloned $3 repository to $2"
 }
 
 checkout_latest_version() {
@@ -426,6 +436,7 @@ configure_build() {
     "$CABAL_BINARY" update >/dev/null 2>&1 && green "Updated cabal"
     [ -f "$PROJECT_FILE" ] && rm -rf "$PROJECT_FILE"
     white "Configuring the build options to build with GHC version $GHC_VERSION"
+    export PATH="$USER_HOME/.cabal/bin:$USER_HOME/.ghcup/bin:$PATH"
     "$CABAL_BINARY" configure --with-compiler=ghc-"$GHC_VERSION" || die "Failed configuring the build options"
     green "Configured build options"
 }
@@ -511,14 +522,50 @@ install_latest_node() {
     install_binaries 
     check_install
     check_ownerships
+    check_required_sourcing
     succeed "Successfully installed latest cardano node! :)"
 }
 
+check_required_sourcing() {
+    [ $SOURCE_REQUIRED ] && green "Source $SHELL_PROFILE_FILE or restart your terminal session to start using the binaries"
+}
+
+check_arguments() {
+    while getopts ':yvh' opt; do 
+        case "$opt" in
+            h) help;;
+            v) version;;
+            y) confirm_prompts;;
+            *) help
+        esac
+    done
+    shift $((OPTIND -1))
+}
+
+confirm_prompts() {
+    { [ $CONFIRM = 0 ] && CONFIRM=true; } || die "More than one -y flag has been specified"
+}
+
+version() {
+    normal "$LATEST_VERSION" && exit 0
+}
+
+help() {
+    normal "Usage:   setup.sh [ OPTIONS ]          Install the latest cardano node version" 
+    normal 
+    normal "Available options"
+    normal "  -h, --help                           Display this help message."
+    normal "  -y, --yes                            Add environment variables to PATH automatically."
+    normal "  -v, --version                        Display the latest cardano node version."
+    exit 0
+}
+
 main() {
+    check_arguments "$@"
     check_version
     check_root
     check_run_control
     install_latest_node
 }
 
-main
+main "$@"
