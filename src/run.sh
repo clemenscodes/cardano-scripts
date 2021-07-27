@@ -210,30 +210,39 @@ set_ownership() {
     chown -R "$RUNNER":"$RUNNER" "$1"
 }
 
-node_run() {
-    CONFIG="$CONFIG_DIR/$NETWORK/$NETWORK-config.json"
-    DB="$DATA_DIR/$NETWORK"
-    SOCKET="$IPC_DIR/node.socket"
-    HOST="127.0.0.1"
-    PORT=1337
-    TOPOLOGY="$CONFIG_DIR/$NETWORK/$NETWORK-topology.json"
-    cardano-node run \
-    --config "$CONFIG" \
-    --database-path "$DB" \
-    --socket-path "$SOCKET" \
-    --host-addr $HOST \
-    --port $PORT \
-    --topology "$TOPOLOGY" 
-}
-
 run() {
     green "Preparing to run node"
     [ -z "$NETWORK" ] && ask_network
     green "Running node in $NETWORK"
     if [ -z "$PIPELINE" ]; then
-        node_run
+        CONFIG="$CONFIG_DIR/$NETWORK/$NETWORK-config.json"
+        DB="$DATA_DIR/$NETWORK"
+        SOCKET="$IPC_DIR/node.socket"
+        HOST="127.0.0.1"
+        PORT=1337
+        TOPOLOGY="$CONFIG_DIR/$NETWORK/$NETWORK-topology.json"
+        cardano-node run \
+        --config "$CONFIG" \
+        --database-path "$DB" \
+        --socket-path "$SOCKET" \
+        --host-addr $HOST \
+        --port $PORT \
+        --topology "$TOPOLOGY" 
     else
-        node_run & PID=$! && sleep 30 && kill -HUP $PID
+        yellow "Pipelined node"
+        CONFIG="$CONFIG_DIR/$NETWORK/$NETWORK-config.json"
+        DB="$DATA_DIR/$NETWORK"
+        SOCKET="$IPC_DIR/node.socket"
+        HOST="127.0.0.1"
+        PORT=1337
+        TOPOLOGY="$CONFIG_DIR/$NETWORK/$NETWORK-topology.json"
+        cardano-node run \
+        --config "$CONFIG" \
+        --database-path "$DB" \
+        --socket-path "$SOCKET" \
+        --host-addr $HOST \
+        --port $PORT \
+        --topology "$TOPOLOGY" & PID=$! && sleep 30 && kill -HUP $PID
     fi
 }
 
