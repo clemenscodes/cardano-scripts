@@ -445,6 +445,7 @@ clone_repository() {
 checkout_latest_node_version() {
     white "Checking out latest node version"
     change_directory "$CARDANO_NODE_DIR"
+    git fetch --all --recurse-submodules --tags
     git checkout tags/"$LATEST_VERSION" >/dev/null 2>&1 || die "Failed checking out version $LATEST_VERSION"
     green "Successfully checked out latest node version $LATEST_VERSION"
 }

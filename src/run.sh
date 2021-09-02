@@ -8,6 +8,8 @@ WORK_DIR="$USER_HOME/.cardano"
 IPC_DIR="$WORK_DIR/ipc"
 CONFIG_DIR="$WORK_DIR/config"
 DATA_DIR="$WORK_DIR/data/db"
+MAINNET_DATA_DIR="$DATA_DIR/mainnet"
+TESTNET_DATA_DIR="$DATA_DIR/testnet"
 CONFIG_BASE_URL="https://hydra.iohk.io/job/Cardano/cardano-node/cardano-deployment/latest-finished/download/1"
 RELEASE_URL="https://api.github.com/repos/input-output-hk/cardano-node/releases/latest"
 LATEST_VERSION="$(curl -s "$RELEASE_URL" | grep tag_name | awk -F ':' '{print $2}' | tr -d '"' | tr -d ',' | tr -d '[:space:]')"
@@ -176,9 +178,20 @@ check_network() {
 
 check_config() {
     white "Checking for $NETWORK config files"
-    check_directory "config" "$CONFIG_DIR"
     check_directory "$NETWORK" "$CONFIG_DIR/$NETWORK"
     check_config_files "$NETWORK" "$CONFIG_DIR/$NETWORK"
+}
+
+check_workdir() {
+    ({
+    check_directory "working" "$WORK_DIR" &&
+    check_directory "ipc" "$IPC_DIR" &&
+    check_directory "config" "$CONFIG_DIR" &&
+    check_directory "data" "$DATA_DIR" &&
+    check_directory "testnet" "$TESTNET_DATA_DIR" &&
+    check_directory "mainnet" "$MAINNET_DATA_DIR";
+    } || die "Failed setting up $WORK_DIR")
+    green "Successfully setup working directory"
 }
 
 check_config_files() {
@@ -255,6 +268,7 @@ main() {
     check_arguments "$@"
     check_version
     check_network
+    check_workdir
     check_config
     check_ownerships
     run
