@@ -1,0 +1,16 @@
+{
+    "PlutusFirstClassPhoto358": {
+        "Pioneer":"Clemens Horn",
+        "Thanks to:":["Stale for Minting","Alyssa & Trevor [at] Never Engine for Art"],
+        "files":[
+            {
+            "mediaType":"video/mp4",
+            "name":"Plutus Pioneers - 2021 Class Photo - First Cohort",
+            "src":"ipfs://QmaPJsTtK7hK3NpA4y7udX5jGLcF5FsMWq9K157mWBwQrL"
+            }
+        ],
+        "image":"ipfs://QmcKJbTgVS5qygLgjfRree941NXjn9V8KuRF7FcfM7xfWq",
+        "mediaType":"image/gif",
+        "name":"Plutus Pioneers - 2021 Class Photo - First Cohort"
+    }
+}
